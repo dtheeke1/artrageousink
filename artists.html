@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artists | Artrageous Ink | Green Bay, WI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar">
+    <a href="index.html" class="nav-logo"><img src="images/logo.png" alt="Artrageous Ink"><span>Artrageous Ink</span></a>
+    <ul class="nav-links" id="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li class="dropdown"><a href="artists.html" class="active">Artists</a>
+            <ul class="dropdown-menu">
+                <li><a href="artists/david-theeke.html">David Theeke</a></li>
+                <li><a href="artists/rob-jensen.html">Rob Jensen</a></li>
+                <li><a href="artists/eric-ebbole.html">Eric Ebbole</a></li>
+                <li><a href="artists/steve-wickert.html">Steve Wickert</a></li>
+                <li><a href="artists/brady-buckman.html">Brady Buckman <span class="guest-label">Guest</span></a></li>
+            </ul>
+        </li>
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="reviews.html">Reviews</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="https://www.schedulicity.com/scheduling/ai8fta" target="_blank" class="nav-book">Book Now</a></li>
+    </ul>
+    <span class="nav-phone"><a href="tel:9204357152" style="color:#c9a84c;">(920) 435-7152</a></span>
+    <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+<div class="page-wrap">
+
+<div class="page-hero">
+    <p class="section-label">The Team</p>
+    <h1>Our Artists</h1>
+</div>
+
+<section style="background:#111;">
+    <div class="container">
+        <p style="color:#888; max-width:640px; margin-bottom:3rem;">Each of our artists brings decades of experience and a distinct style. Click any artist to learn more about their background, specialties, and portfolio.</p>
+        <div class="artists-grid" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
+            <a href="artists/david-theeke.html" class="artist-card">
+                <img src="images/david-theeke.jpg" alt="David Theeke">
+                <div class="artist-card-info">
+                    <div class="artist-card-name">David Theeke</div>
+                    <div class="artist-card-tag">Owner &middot; Large Scale Custom &middot; Asian Style</div>
+                </div>
+            </a>
+            <a href="artists/rob-jensen.html" class="artist-card">
+                <img src="images/rob-jensen.jpg" alt="Rob Jensen">
+                <div class="artist-card-info">
+                    <div class="artist-card-name">Rob Jensen</div>
+                    <div class="artist-card-tag">All Styles &middot; Custom Work</div>
+                </div>
+            </a>
+            <a href="artists/eric-ebbole.html" class="artist-card">
+                <img src="images/eric-ebbole.jpg" alt="Eric Ebbole">
+                <div class="artist-card-info">
+                    <div class="artist-card-name">Eric Ebbole</div>
+                    <div class="artist-card-tag">Black &amp; Grey &middot; Color &middot; All Sizes</div>
+                </div>
+            </a>
+            <a href="artists/steve-wickert.html" class="artist-card">
+                <img src="images/steve-wickert.jpg" alt="Steve Wickert">
+                <div class="artist-card-info">
+                    <div class="artist-card-name">Steve Wickert</div>
+                    <div class="artist-card-tag">Japanese &middot; American Traditional</div>
+                </div>
+            </a>
+            <a href="artists/brady-buckman.html" class="artist-card">
+                <img src="images/brady-buckman.jpg" alt="Brady Buckman">
+                <div class="artist-card-info">
+                    <div class="artist-card-name">Brady Buckman</div>
+                    <div class="artist-card-tag">Guest Artist &middot; By Appointment</div>
+                </div>
+            </a>
+        </div>
+    </div>
+</section>
+
+</div>
+<footer>
+    <div class="footer-grid">
+        <div class="footer-brand"><img src="images/logo.png" alt="Artrageous Ink"><p>Northeast Wisconsin's premier tattoo studio since 1995.</p></div>
+        <div class="footer-col"><h4>Navigate</h4><ul><li><a href="about.html">About</a></li><li><a href="artists.html">Artists</a></li><li><a href="faq.html">FAQ</a></li><li><a href="reviews.html">Reviews</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-col"><h4>Hours</h4><ul><li><a>Mon–Sat: 11am–8pm</a></li><li><a>Sun: 12pm–5pm</a></li><li><a href="tel:9204357152">(920) 435-7152</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><span>&copy; 2026 Artrageous Ink &mdash; Green Bay, WI</span><a href="https://www.schedulicity.com/scheduling/ai8fta" target="_blank">Book Online</a></div>
+</footer>
+<script>document.getElementById('hamburger').addEventListener('click',()=>document.getElementById('nav-links').classList.toggle('open'));</script>
+</body>
+</html>
