@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gallery | The Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .upload-zone {
+      border: 2px dashed var(--gold);
+      border-radius: 4px;
+      padding: 3rem;
+      text-align: center;
+      background: var(--warm-white);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      margin-bottom: 3rem;
+    }
+    .upload-zone:hover { background: var(--parchment); border-color: var(--forest); }
+    .upload-zone .upload-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+    .upload-zone h3 { font-family: var(--font-serif); color: var(--forest); margin-bottom: 0.5rem; }
+    .upload-zone p { color: var(--stone); font-size: 0.9rem; }
+
+    .album-tabs {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+    }
+    .album-tab {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--parchment);
+      background: #fff;
+      border-radius: 2px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--stone);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .album-tab.active, .album-tab:hover {
+      background: var(--forest);
+      color: #fff;
+      border-color: var(--forest);
+    }
+
+    .masonry-gallery {
+      columns: 3;
+      column-gap: 1rem;
+    }
+    .photo-brick {
+      break-inside: avoid;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .photo-brick:hover { transform: scale(1.02); }
+    .photo-brick:hover .gallery-overlay { opacity: 1; }
+    .photo-face {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      position: relative;
+    }
+    .photo-face .gallery-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(45,80,22,0.6);
+      opacity: 0;
+      transition: opacity 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      gap: 0.4rem;
+    }
+    .photo-caption {
+      padding: 0.6rem 0.75rem;
+      background: #fff;
+      font-size: 0.8rem;
+      color: var(--stone);
+    }
+    .photo-caption strong { display: block; color: var(--charcoal); font-size: 0.85rem; }
+
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox-inner {
+      background: #fff;
+      border-radius: 4px;
+      max-width: 680px;
+      width: 90%;
+      overflow: hidden;
+      position: relative;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(0,0,0,0.5);
+      border: none;
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .lightbox-face {
+      width: 100%;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 6rem;
+    }
+    .lightbox-body { padding: 1.5rem; }
+    .lightbox-body h3 { font-family: var(--font-serif); font-size: 1.3rem; color: var(--forest); margin-bottom: 0.25rem; }
+    .lightbox-body p { color: var(--stone); font-size: 0.9rem; }
+    .lightbox-body .memory-year { font-size: 0.75rem; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem; }
+
+    @media(max-width:768px) { .masonry-gallery { columns: 2; } }
+    @media(max-width:480px) { .masonry-gallery { columns: 1; } }
+  </style>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="index.html" class="nav-brand">The <span>Theeke</span> Family</a>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="memories.html">Memories</a></li>
+    <li><a href="gallery.html" class="active">Gallery</a></li>
+    <li><a href="timeline.html">Timeline</a></li>
+    <li><a href="family.html">Family</a></li>
+    <li><a href="add-memory.html" class="nav-share">+ Add Memory</a></li>
+  </ul>
+  <button class="hamburger" id="hamburger" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="page-hero">
+  <span class="section-label">Photos &amp; Albums</span>
+  <h1 class="section-title">Family Gallery</h1>
+  <div class="divider center"></div>
+  <p>A lifetime of moments captured on film and phone. Browse the albums, or add your own photos to the collection.</p>
+</div>
+
+<section>
+  <div class="container">
+
+    <!-- Upload Zone -->
+    <div class="upload-zone" onclick="document.getElementById('photo-input').click()">
+      <input type="file" id="photo-input" accept="image/*" multiple style="display:none">
+      <span class="upload-icon">&#128247;</span>
+      <h3>Upload Family Photos</h3>
+      <p>Click to select photos, or drag and drop them here. JPG, PNG, HEIC supported.</p>
+    </div>
+
+    <!-- Album Tabs -->
+    <div class="album-tabs">
+      <button class="album-tab active">All Photos</button>
+      <button class="album-tab">Holidays</button>
+      <button class="album-tab">Vacations</button>
+      <button class="album-tab">Milestones</button>
+      <button class="album-tab">Everyday</button>
+      <button class="album-tab">Throwbacks</button>
+    </div>
+
+    <!-- Masonry Grid -->
+    <div class="masonry-gallery">
+
+      <div class="photo-brick" onclick="openLightbox('Christmas Blizzard &#127876;','December 1998','The snow piled up and nobody was going anywhere. Best Christmas ever.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#d4a5a5,#a07070); height:260px;">
+          &#127876;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Christmas Blizzard</strong>December 1998</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Door County &#128674;','Summer 2004','The great camping trip that ended in the minivan.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#a5c4d4,#5a8fa0); height:200px;">
+          &#128674;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Door County Trip</strong>Summer 2004</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Graduation Day &#127881;','June 2012','Grandpa gave the speech of his life.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#b5d4a5,#6a9d5a); height:230px;">
+          &#127881;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Graduation Day</strong>June 2012</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Thanksgiving &#127817;','November 2009','The pizza Thanksgiving will live forever.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#d4c4a5,#b09060); height:180px;">
+          &#127817;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Thanksgiving</strong>November 2009</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Grandma&#39;s 80th &#127974;','March 2019','She said no party. We threw a party.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#a5d4c4,#4a9080); height:250px;">
+          &#127974;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Grandma&rsquo;s 80th Birthday</strong>March 2019</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('July 4th &#127998;','July 2001','The lawn chair incident. We don&#39;t talk about it.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#d4a5c4,#a06090); height:210px;">
+          &#127998;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Fourth of July</strong>2001</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Sunday Morning &#127926;','August 2016','Pancakes and records. A perfect Sunday.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#c4a5d4,#8a6ab0); height:220px;">
+          &#127926;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Sunday Morning</strong>August 2016</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Soccer Season &#9917;','Fall 2007','Zero wins. Infinite juice boxes.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#c4d4a5,#90b060); height:190px;">
+          &#9917;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Soccer Season</strong>Fall 2007</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Easter Hunt &#129423;','Easter 2014','The dog won. The kids didn&#39;t stand a chance.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#d4d4a5,#b0b060); height:200px;">
+          &#129423;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Easter Egg Hunt</strong>2014</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('Road Trip &#128663;','Summer 1999','Three kids, one car, no AC. A masterpiece.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#d4c4d4,#a080a0); height:245px;">
+          &#128663;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>Summer Road Trip</strong>1999</div>
+      </div>
+
+      <div class="photo-brick" onclick="openLightbox('New Year&#39;s &#127878;','December 1999','Y2K was coming. We partied anyway.',this)">
+        <div class="photo-face" style="background:linear-gradient(135deg,#a5a5d4,#6060b0); height:185px;">
+          &#127878;
+          <div class="gallery-overlay">
+            <span style="font-size:1.5rem">&#128269;</span>
+            <span style="font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase">View</span>
+          </div>
+        </div>
+        <div class="photo-caption"><strong>New Year&rsquo;s Eve</strong>1999</div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" onclick="closeLightbox()">&#10005;</button>
+    <div class="lightbox-face" id="lb-face"></div>
+    <div class="lightbox-body">
+      <div class="memory-year" id="lb-year"></div>
+      <h3 id="lb-title"></h3>
+      <p id="lb-desc"></p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div class="footer-brand-name">The <span>Theeke</span> Family</div>
+      <p>A private collection of moments, memories, and milestones. Green Bay, Wisconsin &mdash; and wherever life takes us.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="memories.html">Memories</a></li>
+        <li><a href="timeline.html">Timeline</a></li>
+        <li><a href="family.html">Family Members</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Contribute</h4>
+      <ul>
+        <li><a href="add-memory.html">Add a Memory</a></li>
+        <li><a href="gallery.html">Upload Photos</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>&copy; 2026 The Theeke Family &mdash; Made with <span class="footer-heart">&#10084;</span> in Green Bay, WI</span>
+    <a href="index.html">Home</a>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('hamburger').addEventListener('click', () => {
+    document.getElementById('nav-links').classList.toggle('open');
+  });
+
+  document.querySelectorAll('.album-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.album-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  function openLightbox(title, year, desc, el) {
+    const face = el.querySelector('.photo-face');
+    const bg = face.style.background;
+    const icon = face.textContent.trim().split('\n')[0];
+    document.getElementById('lb-face').style.background = bg;
+    document.getElementById('lb-face').textContent = icon;
+    document.getElementById('lb-title').innerHTML = title;
+    document.getElementById('lb-year').textContent = year;
+    document.getElementById('lb-desc').textContent = desc;
+    document.getElementById('lightbox').classList.add('open');
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+</body>
+</html>

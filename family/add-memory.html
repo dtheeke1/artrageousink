@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add a Memory | The Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .form-card {
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 4px 24px var(--shadow);
+      padding: 3rem;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .form-group {
+      margin-bottom: 1.75rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--forest);
+      margin-bottom: 0.5rem;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1.5px solid var(--parchment);
+      border-radius: 2px;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      color: var(--charcoal);
+      background: var(--warm-white);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--forest);
+      box-shadow: 0 0 0 3px rgba(45,80,22,0.1);
+    }
+    .form-group textarea { min-height: 140px; resize: vertical; }
+
+    .photo-drop {
+      border: 2px dashed var(--gold);
+      border-radius: 4px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      background: var(--warm-white);
+      transition: background 0.2s;
+    }
+    .photo-drop:hover { background: var(--parchment); }
+    .photo-drop-icon { font-size: 2.5rem; margin-bottom: 0.5rem; display: block; }
+    .photo-drop p { color: var(--stone); font-size: 0.88rem; }
+    .photo-drop strong { color: var(--forest); }
+
+    .category-pills {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .cat-pill {
+      padding: 0.4rem 1rem;
+      border: 1.5px solid var(--parchment);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: var(--stone);
+      background: #fff;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .cat-pill.selected { background: var(--forest); color: #fff; border-color: var(--forest); }
+
+    .form-divider {
+      border: none;
+      border-top: 1px solid var(--parchment);
+      margin: 2rem 0;
+    }
+
+    .form-title {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      color: var(--forest);
+      margin-bottom: 0.25rem;
+    }
+    .form-subtitle {
+      color: var(--stone);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+
+    .success-banner {
+      display: none;
+      background: var(--forest);
+      color: #fff;
+      padding: 1.5rem;
+      border-radius: 4px;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .success-banner.show { display: block; }
+    .success-banner h3 { font-family: var(--font-serif); font-size: 1.3rem; margin-bottom: 0.3rem; }
+    .success-banner p { font-size: 0.9rem; color: rgba(255,255,255,0.8); }
+
+    .tips-card {
+      background: var(--parchment);
+      border-left: 3px solid var(--gold);
+      padding: 1.5rem;
+      border-radius: 2px;
+      margin-bottom: 2.5rem;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .tips-card h4 {
+      font-family: var(--font-serif);
+      color: var(--forest);
+      margin-bottom: 0.75rem;
+      font-size: 1rem;
+    }
+    .tips-card ul {
+      list-style: none;
+      padding: 0;
+    }
+    .tips-card li {
+      font-size: 0.88rem;
+      color: var(--stone);
+      padding: 0.25rem 0;
+      padding-left: 1.25rem;
+      position: relative;
+    }
+    .tips-card li::before {
+      content: '&#10003;';
+      position: absolute;
+      left: 0;
+      color: var(--gold);
+    }
+
+    @media(max-width:600px) {
+      .form-row { grid-template-columns: 1fr; }
+      .form-card { padding: 2rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="index.html" class="nav-brand">The <span>Theeke</span> Family</a>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="memories.html">Memories</a></li>
+    <li><a href="gallery.html">Gallery</a></li>
+    <li><a href="timeline.html">Timeline</a></li>
+    <li><a href="family.html">Family</a></li>
+    <li><a href="add-memory.html" class="active nav-share">+ Add Memory</a></li>
+  </ul>
+  <button class="hamburger" id="hamburger" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="page-hero">
+  <span class="section-label">Contribute</span>
+  <h1 class="section-title">Share a Memory</h1>
+  <div class="divider center"></div>
+  <p>Every family story deserves to be remembered. Add yours here &mdash; big moments, small moments, funny moments. They all belong.</p>
+</div>
+
+<section>
+  <div class="container">
+
+    <div class="tips-card">
+      <h4>&#128161; What makes a great memory?</h4>
+      <ul>
+        <li style="padding-left:1.25rem;position:relative;">
+          <span style="position:absolute;left:0;color:var(--gold);">&#10003;</span>
+          Include who was there &mdash; the more names, the better
+        </li>
+        <li style="padding-left:1.25rem;position:relative;">
+          <span style="position:absolute;left:0;color:var(--gold);">&#10003;</span>
+          Mention the little details you remember (the weather, the song playing, what someone said)
+        </li>
+        <li style="padding-left:1.25rem;position:relative;">
+          <span style="position:absolute;left:0;color:var(--gold);">&#10003;</span>
+          Don&rsquo;t just say what happened &mdash; say how it felt
+        </li>
+        <li style="padding-left:1.25rem;position:relative;">
+          <span style="position:absolute;left:0;color:var(--gold);">&#10003;</span>
+          Add a photo if you have one &mdash; even old, blurry ones are treasures
+        </li>
+      </ul>
+    </div>
+
+    <div id="success-msg" class="success-banner">
+      <h3>Memory Added! &#10084;</h3>
+      <p>Thank you for contributing to the family collection. Your story is now part of the Theeke archive.</p>
+    </div>
+
+    <div class="form-card">
+      <h2 class="form-title">Tell Us the Story</h2>
+      <p class="form-subtitle">Fill in as much or as little as you like. Every detail helps.</p>
+
+      <form id="memory-form" onsubmit="submitMemory(event)">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mem-title">Memory Title *</label>
+            <input type="text" id="mem-title" placeholder="e.g. The Christmas Blizzard" required>
+          </div>
+          <div class="form-group">
+            <label for="mem-name">Your Name *</label>
+            <input type="text" id="mem-name" placeholder="e.g. David, Mom, Aunt Barb" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mem-year">Year / Date</label>
+            <input type="text" id="mem-year" placeholder="e.g. December 1998, Summer 2004">
+          </div>
+          <div class="form-group">
+            <label for="mem-who">Who Was There?</label>
+            <input type="text" id="mem-who" placeholder="e.g. Everyone, just the kids, etc.">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Category</label>
+          <div class="category-pills">
+            <span class="cat-pill" onclick="togglePill(this)">&#127876; Holidays</span>
+            <span class="cat-pill" onclick="togglePill(this)">&#128674; Vacations</span>
+            <span class="cat-pill" onclick="togglePill(this)">&#127881; Milestones</span>
+            <span class="cat-pill" onclick="togglePill(this)">&#127774; Everyday</span>
+            <span class="cat-pill" onclick="togglePill(this)">&#128514; Funny</span>
+            <span class="cat-pill" onclick="togglePill(this)">&#128116; Kids</span>
+            <span class="cat-pill" onclick="togglePill(this)">&#10084; Heartfelt</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="mem-story">The Story *</label>
+          <textarea id="mem-story" placeholder="Tell it the way you&apos;d tell it at the dinner table. Include the details people might forget. The funnier and more specific, the better." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Add a Photo (optional)</label>
+          <div class="photo-drop" onclick="document.getElementById('photo-upload').click()">
+            <input type="file" id="photo-upload" accept="image/*" style="display:none">
+            <span class="photo-drop-icon">&#128247;</span>
+            <p><strong>Click to upload a photo</strong><br>JPG, PNG, HEIC &bull; Any size</p>
+          </div>
+        </div>
+
+        <hr class="form-divider">
+
+        <div class="form-group" style="margin-bottom:0">
+          <button type="submit" class="btn btn-primary" style="width:100%; padding:1rem; font-size:0.95rem;">
+            &#10084; Save This Memory to the Family Archive
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<div class="quote-block">
+  <span class="quote-mark">&ldquo;</span>
+  <p class="quote-text">The stories we tell about each other are the greatest gift we give.</p>
+  <p class="quote-attr">A truth every family knows</p>
+</div>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div class="footer-brand-name">The <span>Theeke</span> Family</div>
+      <p>A private collection of moments, memories, and milestones. Green Bay, Wisconsin &mdash; and wherever life takes us.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="memories.html">Memories</a></li>
+        <li><a href="gallery.html">Gallery</a></li>
+        <li><a href="timeline.html">Timeline</a></li>
+        <li><a href="family.html">Family Members</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Contribute</h4>
+      <ul>
+        <li><a href="gallery.html">Upload Photos</a></li>
+        <li><a href="timeline.html">Add to Timeline</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>&copy; 2026 The Theeke Family &mdash; Made with <span class="footer-heart">&#10084;</span> in Green Bay, WI</span>
+    <a href="index.html">Home</a>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('hamburger').addEventListener('click', () => {
+    document.getElementById('nav-links').classList.toggle('open');
+  });
+
+  function togglePill(el) {
+    el.classList.toggle('selected');
+  }
+
+  function submitMemory(e) {
+    e.preventDefault();
+    const banner = document.getElementById('success-msg');
+    banner.classList.add('show');
+    document.getElementById('memory-form').reset();
+    document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('selected'));
+    banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => banner.classList.remove('show'), 6000);
+  }
+
+  document.getElementById('photo-upload').addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+      const drop = this.closest('.photo-drop');
+      drop.innerHTML = `<span class="photo-drop-icon">&#10003;</span><p><strong>${this.files[0].name}</strong><br><span style="color:var(--stone)">Click to change</span></p>`;
+      drop.onclick = () => document.getElementById('photo-upload').click();
+    }
+  });
+</script>
+</body>
+</html>
