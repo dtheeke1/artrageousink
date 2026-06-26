@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collages | Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .collage-toolbar {
+      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .collage-toolbar select {
+      padding: .5rem .85rem; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--surface);
+      font-size: .88rem; color: var(--ink); flex: 1; min-width: 180px; max-width: 320px;
+    }
+    .style-pills {
+      display: flex; gap: .4rem; flex-wrap: wrap;
+    }
+    .style-pill {
+      padding: .4rem .9rem; border-radius: 20px; font-size: .78rem; font-weight: 600;
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--ink2);
+      cursor: pointer; transition: all var(--trans);
+    }
+    .style-pill.active { background: var(--green); color: #fff; border-color: var(--green); }
+
+    /* Collage layouts */
+    .collage-wrap {
+      border-radius: var(--radius); overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      margin-bottom: 1.5rem;
+    }
+    .c-grid { display: grid; gap: 4px; }
+    .c-cell { overflow: hidden; min-height: 80px; }
+    .c-cell img {
+      width: 100%; height: 100%; object-fit: cover;
+      display: block; transition: transform .4s;
+    }
+    .c-cell:hover img { transform: scale(1.04); }
+
+    /* Layout: Featured (big + 4 right) */
+    .layout-featured .c-grid {
+      grid-template-columns: 2fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr;
+      height: 580px;
+    }
+    .layout-featured .c-cell:nth-child(1) { grid-row: span 3; }
+
+    /* Layout: Mosaic */
+    .layout-mosaic .c-grid {
+      grid-template-columns: 2fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      height: 520px;
+    }
+    .layout-mosaic .c-cell:nth-child(1) { grid-row: span 2; }
+
+    /* Layout: Grid (equal) */
+    .layout-grid .c-grid {
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      height: 480px;
+    }
+
+    /* Layout: Portrait (tall center) */
+    .layout-portrait .c-grid {
+      grid-template-columns: 1fr 2fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      height: 520px;
+    }
+    .layout-portrait .c-cell:nth-child(2) { grid-row: span 2; }
+
+    /* Layout: Strip (row of 4) */
+    .layout-strip .c-grid {
+      grid-template-columns: repeat(4, 1fr);
+      height: 300px;
+    }
+
+    /* Layout: Magazine */
+    .layout-magazine .c-grid {
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 2fr 1fr;
+      height: 560px;
+    }
+    .layout-magazine .c-cell:nth-child(1) { grid-column: span 2; }
+
+    .collage-caption {
+      text-align: center; padding: .75rem;
+      font-family: var(--ff-serif); font-size: 1.1rem; color: var(--ink2);
+      background: var(--surface); border-top: 1px solid var(--border);
+    }
+
+    .share-row {
+      display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .no-album {
+      padding: 4rem; text-align: center; color: var(--ink3);
+      border: 2px dashed var(--border); border-radius: var(--radius);
+    }
+    .no-album h3 { font-family: var(--ff-serif); font-size: 1.4rem; color: var(--ink); margin-bottom: .5rem; }
+  </style>
+</head>
+<body>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<nav id="nav">
+  <a href="index.html" class="nav-brand">The <em>Theeke</em> Family</a>
+  <ul id="nav-links">
+    <li><a class="nav-link" href="index.html">Home</a></li>
+    <li><a class="nav-link" href="events.html">Events</a></li>
+    <li><a class="nav-link" href="people.html">People</a></li>
+    <li><a class="nav-link" href="slideshow.html">Slideshow</a></li>
+    <li><a class="nav-link" href="collage.html">Collages</a></li>
+  </ul>
+  <button id="signout-btn">Sign out</button>
+  <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="page">
+  <div class="wrap-sm">
+    <p class="eyebrow">Auto-generated</p>
+    <h1 class="page-title">Collages</h1>
+    <div class="rule"></div>
+    <p style="color:var(--ink2); margin-bottom:2rem;">Pick an album and a layout — the collage builds itself from your photos.</p>
+
+    <!-- Toolbar -->
+    <div class="collage-toolbar">
+      <select id="album-sel">
+        <option value="">— Choose an Album —</option>
+      </select>
+
+      <div class="style-pills" id="layout-pills">
+        <button class="style-pill active" data-layout="featured">Featured</button>
+        <button class="style-pill"        data-layout="mosaic">Mosaic</button>
+        <button class="style-pill"        data-layout="grid">Grid</button>
+        <button class="style-pill"        data-layout="portrait">Portrait</button>
+        <button class="style-pill"        data-layout="strip">Strip</button>
+        <button class="style-pill"        data-layout="magazine">Magazine</button>
+      </div>
+
+      <button class="btn btn-ghost btn-sm" id="shuffle-btn" title="Regenerate with different photos">
+        &#8635; Regenerate
+      </button>
+    </div>
+
+    <!-- Collage output -->
+    <div id="collage-output">
+      <div class="no-album">
+        <h3>Choose an album above</h3>
+        <p>Or open any event or person page and click "Collage" to jump straight here.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer><span>The Theeke Family &mdash; Private</span></footer>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // Layouts: name → { cols, rows, cellCount, spans }
+  const LAYOUTS = {
+    featured: {
+      wrap: 'layout-featured',
+      count: 4,   // big + 3 right
+      getGrid(imgs) {
+        const cells = imgs.slice(0,4);
+        return `<div class="c-grid">${cells.map((src,i) => `<div class="c-cell"><img src="${src}" alt="" loading="lazy"></div>`).join('')}</div>`;
+      }
+    },
+    mosaic: {
+      wrap: 'layout-mosaic',
+      count: 5,
+      getGrid(imgs) {
+        return `<div class="c-grid">${imgs.slice(0,5).map(src=>`<div class="c-cell"><img src="${src}" alt="" loading="lazy"></div>`).join('')}</div>`;
+      }
+    },
+    grid: {
+      wrap: 'layout-grid',
+      count: 6,
+      getGrid(imgs) {
+        return `<div class="c-grid">${imgs.slice(0,6).map(src=>`<div class="c-cell"><img src="${src}" alt="" loading="lazy"></div>`).join('')}</div>`;
+      }
+    },
+    portrait: {
+      wrap: 'layout-portrait',
+      count: 4,
+      getGrid(imgs) {
+        // reorder: left-top, CENTER (tall), right-top, bottom-left, bottom-right
+        const [a,b,c,d] = imgs.slice(0,4);
+        return `<div class="c-grid">
+          <div class="c-cell"><img src="${a}" alt="" loading="lazy"></div>
+          <div class="c-cell"><img src="${b}" alt="" loading="lazy"></div>
+          <div class="c-cell"><img src="${c}" alt="" loading="lazy"></div>
+          <div class="c-cell"><img src="${d||a}" alt="" loading="lazy"></div>
+        </div>`;
+      }
+    },
+    strip: {
+      wrap: 'layout-strip',
+      count: 4,
+      getGrid(imgs) {
+        return `<div class="c-grid">${imgs.slice(0,4).map(src=>`<div class="c-cell"><img src="${src}" alt="" loading="lazy"></div>`).join('')}</div>`;
+      }
+    },
+    magazine: {
+      wrap: 'layout-magazine',
+      count: 5,
+      getGrid(imgs) {
+        return `<div class="c-grid">${imgs.slice(0,5).map(src=>`<div class="c-cell"><img src="${src}" alt="" loading="lazy"></div>`).join('')}</div>`;
+      }
+    },
+  };
+
+  let currentPhotos = [];
+  let currentTitle = '';
+  let currentLayout = 'featured';
+
+  function renderCollage() {
+    if (!currentPhotos.length) return;
+    const layout = LAYOUTS[currentLayout];
+    const shuffled = shuffle(currentPhotos);
+    const urls = shuffled.slice(0, layout.count).map(p => API.url(p.baseUrl, 'medium'));
+
+    document.getElementById('collage-output').innerHTML = `
+      <div class="collage-wrap layout-${currentLayout}">
+        ${layout.getGrid(urls)}
+        <div class="collage-caption">${currentTitle}</div>
+      </div>
+      <div class="share-row">
+        <button class="btn btn-outline btn-sm" onclick="window.print()">&#128424; Print</button>
+        <button class="btn btn-gold btn-sm" id="save-btn">&#128190; Save Image</button>
+        <a href="slideshow.html" class="btn btn-ghost btn-sm">&#9654; Slideshow instead</a>
+      </div>`;
+
+    // Save as image using canvas (if supported)
+    document.getElementById('save-btn')?.addEventListener('click', saveCollage);
+  }
+
+  function saveCollage() {
+    // Simple approach: open print dialog for saving
+    const title = currentTitle;
+    const imgs = document.querySelectorAll('#collage-output .c-cell img');
+    if (!imgs.length) return;
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>
+      body{margin:0;background:#000;}
+      .cg{display:grid;gap:4px;width:100vw;height:100vh;grid-template-columns:${document.querySelector('.c-grid')?.style.gridTemplateColumns || 'repeat(3,1fr)'}}
+      .cc{overflow:hidden;} img{width:100%;height:100%;object-fit:cover;}
+    </style></head><body><div class="cg">${[...imgs].map(i=>`<div class="cc"><img src="${i.src}"></div>`).join('')}</div></body></html>`);
+    win.document.close();
+    win.onload = () => win.print();
+  }
+
+  async function loadAlbumPhotos(albumId, token) {
+    const output = document.getElementById('collage-output');
+    output.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><p class="spinner-msg">Building collage…</p></div>';
+    try {
+      currentPhotos = await API.photosInAlbum(token, albumId);
+      renderCollage();
+    } catch(e) {
+      handleAuthError(e);
+      showError(output, 'Could not load photos.');
+    }
+  }
+
+  async function populateAlbumSelect(token) {
+    const sel = document.getElementById('album-sel');
+    try {
+      const albums = await cachedAlbums(token);
+      albums.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.title || 'Untitled';
+        opt.dataset.title = a.title || '';
+        sel.appendChild(opt);
+      });
+    } catch(e) { /* ignore */ }
+  }
+
+  // ── Wire up controls ──────────────────────────────────────────
+  document.getElementById('album-sel').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    currentTitle = opt.dataset.title || opt.text;
+    const token = Auth.getToken();
+    if (this.value && token) loadAlbumPhotos(this.value, token);
+  });
+
+  document.getElementById('shuffle-btn').addEventListener('click', () => renderCollage());
+
+  document.querySelectorAll('.style-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.style-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentLayout = pill.dataset.layout;
+      renderCollage();
+    });
+  });
+
+  // ── Boot ──────────────────────────────────────────────────────
+  window.addEventListener('load', async () => {
+    Auth.init(null, null);
+    const token = Auth.getToken();
+    if (!token) { window.location.href = 'index.html'; return; }
+
+    populateAlbumSelect(token);
+
+    // Check if launched from events/people with pre-loaded photos
+    const stored = sessionStorage.getItem('collage_photos');
+    const title  = sessionStorage.getItem('collage_title');
+    if (stored) {
+      sessionStorage.removeItem('collage_photos');
+      sessionStorage.removeItem('collage_title');
+      currentPhotos = JSON.parse(stored);
+      currentTitle  = title || 'Family';
+      renderCollage();
+      // Pre-select in dropdown if matching
+      const sel = document.getElementById('album-sel');
+      [...sel.options].forEach(o => { if (o.text === title) sel.value = o.value; });
+    }
+  });
+</script>
+</body>
+</html>

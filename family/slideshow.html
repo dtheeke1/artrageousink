@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slideshow | Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Album picker (shown when no photos passed in) */
+    .picker-screen {
+      padding-top: calc(var(--nav-h) + 3rem);
+      padding-bottom: 5rem;
+    }
+    .picker-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2.5rem;
+    }
+    .picker-card h2 { font-family: var(--ff-serif); font-size: 1.5rem; margin-bottom: .4rem; }
+    .picker-card p  { color: var(--ink2); margin-bottom: 1.5rem; font-size: .92rem; }
+    .album-pick-list { list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+    .album-pick-item {
+      display: flex; align-items: center; gap: 1rem;
+      padding: .75rem 1rem; border-radius: var(--radius);
+      border: 1px solid var(--border); cursor: pointer;
+      transition: background var(--trans), border-color var(--trans);
+    }
+    .album-pick-item:hover { background: var(--bg); border-color: var(--gold); }
+    .album-pick-thumb {
+      width: 52px; height: 52px; border-radius: 4px; object-fit: cover;
+      flex-shrink: 0; background: var(--border);
+    }
+    .album-pick-name { font-weight: 600; font-size: .92rem; }
+    .album-pick-count { font-size: .78rem; color: var(--ink3); }
+    .start-all-btn { margin-top: 1.5rem; width: 100%; padding: .85rem; font-size: 1rem; }
+
+    /* Slideshow full screen */
+    body.in-show { overflow: hidden; }
+    #show-wrap {
+      display: none;
+      position: fixed; inset: 0; background: #000; z-index: 500;
+    }
+    .slide-stage { position: relative; width: 100%; height: calc(100vh - 68px); overflow: hidden; }
+    .slide-frame {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 1s ease;
+    }
+    .slide-frame.active { opacity: 1; }
+    .slide-bg-blur {
+      position: absolute; inset: -5%;
+      background-size: cover; background-position: center;
+      filter: blur(24px) brightness(.35);
+    }
+    .slide-photo {
+      position: relative; z-index: 1;
+      max-width: 100%; max-height: 100%;
+      object-fit: contain;
+    }
+    .slide-photo.kb { animation: kb var(--kb, 9s) ease-in-out both; }
+    @keyframes kb {
+      0%   { transform: scale(1)    translateX(0); }
+      100% { transform: scale(1.09) translateX(-1.5%); }
+    }
+    @keyframes kb2 {
+      0%   { transform: scale(1)    translateX(0); }
+      100% { transform: scale(1.09) translateX(1.5%); }
+    }
+    .kb2 { animation-name: kb2 !important; }
+    .slide-caption-bar {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
+      padding: 2rem 1.5rem .75rem;
+      background: linear-gradient(to top, rgba(0,0,0,.65), transparent);
+      color: rgba(255,255,255,.9); font-size: .88rem;
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
+    .slide-title { font-family: var(--ff-serif); font-size: 1.15rem; color: #fff; }
+
+    /* Controls */
+    .slide-controls {
+      height: 68px; background: rgba(0,0,0,.9);
+      display: flex; align-items: center; justify-content: center;
+      gap: .85rem; padding: 0 1.5rem; position: relative;
+    }
+    .ctrl {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; font-size: 1.1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: background var(--trans);
+    }
+    .ctrl:hover { background: rgba(255,255,255,.22); }
+    .ctrl.lg { width: 52px; height: 52px; font-size: 1.4rem; }
+    #show-counter {
+      min-width: 80px; text-align: center;
+      color: rgba(255,255,255,.6); font-size: .82rem;
+    }
+    #show-title-bar {
+      position: absolute; left: 1.5rem;
+      color: rgba(255,255,255,.55); font-size: .82rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;
+    }
+    .speed-sel {
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; border-radius: 4px; padding: .3rem .5rem; font-size: .75rem;
+    }
+    .speed-sel option { color: #000; }
+    #show-close {
+      position: absolute; top: 1rem; right: 1rem; z-index: 600;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(0,0,0,.5); border: none; color: #fff;
+      font-size: 1rem; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Progress bar */
+    #progress-bar {
+      position: absolute; top: 0; left: 0; height: 3px;
+      background: var(--gold); transition: width linear;
+    }
+  </style>
+</head>
+<body>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<nav id="nav">
+  <a href="index.html" class="nav-brand">The <em>Theeke</em> Family</a>
+  <ul id="nav-links">
+    <li><a class="nav-link" href="index.html">Home</a></li>
+    <li><a class="nav-link" href="events.html">Events</a></li>
+    <li><a class="nav-link" href="people.html">People</a></li>
+    <li><a class="nav-link" href="slideshow.html">Slideshow</a></li>
+    <li><a class="nav-link" href="collage.html">Collages</a></li>
+  </ul>
+  <button id="signout-btn">Sign out</button>
+  <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+
+<!-- Album picker -->
+<div class="picker-screen page" id="picker">
+  <div class="wrap-sm">
+    <p class="eyebrow">Choose what to play</p>
+    <h1 class="page-title">Slideshow</h1>
+    <div class="rule"></div>
+
+    <div class="picker-card" style="margin-bottom:1.5rem;">
+      <h2>Pick an Event</h2>
+      <p>Select an album to play as a slideshow, or play all your recent photos.</p>
+      <ul class="album-pick-list" id="album-pick-list">
+        <li style="color:var(--ink3); padding:.5rem;">Loading albums…</li>
+      </ul>
+      <button class="btn btn-primary start-all-btn" id="start-all-btn">
+        &#9654; Play All Recent Photos
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Slideshow fullscreen -->
+<div id="show-wrap">
+  <button id="show-close">&#10005;</button>
+  <div class="slide-stage" id="stage">
+    <div id="progress-bar" style="width:0%"></div>
+  </div>
+  <div class="slide-controls">
+    <span id="show-title-bar"></span>
+    <button class="ctrl" id="ctrl-prev" title="Previous">&#8249;</button>
+    <button class="ctrl lg" id="ctrl-play" title="Play/Pause">&#9646;&#9646;</button>
+    <button class="ctrl" id="ctrl-next" title="Next">&#8250;</button>
+    <span id="show-counter"></span>
+    <select class="speed-sel" id="speed-sel">
+      <option value="3000">Fast (3s)</option>
+      <option value="4500" selected>Normal (4.5s)</option>
+      <option value="7000">Slow (7s)</option>
+      <option value="12000">Very Slow (12s)</option>
+    </select>
+    <button class="ctrl" id="ctrl-fs" title="Fullscreen">&#x26F6;</button>
+    <button class="ctrl" id="ctrl-shuffle" title="Shuffle">&#8635;</button>
+  </div>
+</div>
+
+<footer><span>The Theeke Family &mdash; Private</span></footer>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // ── Slideshow engine ──────────────────────────────────────────
+  const Show = (() => {
+    let photos = [], idx = 0, timer = null, playing = false, delay = CONFIG.SLIDESHOW_DELAY;
+    let frames = []; // two alternating divs for crossfade
+
+    function init(list, title) {
+      photos = list;
+      idx = 0;
+      const stage = document.getElementById('stage');
+      // Clear old frames
+      stage.querySelectorAll('.slide-frame').forEach(f => f.remove());
+      frames = [makeFrame(), makeFrame()];
+      frames.forEach(f => stage.appendChild(f));
+      document.getElementById('show-title-bar').textContent = title || 'Theeke Family';
+      document.getElementById('show-wrap').style.display = '';
+      document.body.classList.add('in-show');
+      play();
+    }
+
+    function makeFrame() {
+      const f = document.createElement('div');
+      f.className = 'slide-frame';
+      return f;
+    }
+
+    function show(i) {
+      const p = photos[i];
+      if (!p) return;
+      const isVideo = p.mediaMetadata?.video != null;
+      const active = frames[i % 2];
+      const inactive = frames[(i + 1) % 2];
+
+      // Ken Burns alternates direction
+      const kbClass = i % 2 === 0 ? 'kb' : 'kb kb2';
+      const dur = (delay + 1000) + 'ms';
+
+      active.innerHTML = `
+        <div class="slide-bg-blur" style="background-image:url('${API.url(p.baseUrl,'thumb')}')"></div>
+        ${isVideo
+          ? `<video class="slide-photo" src="${API.videoUrl(p.baseUrl)}" autoplay muted loop></video>`
+          : `<img class="slide-photo ${kbClass}" style="--kb:${dur}" src="${API.url(p.baseUrl,'medium')}" alt="">`}
+        <div class="slide-caption-bar">
+          <div class="slide-title">${p.description || ''}</div>
+          <div>${fmtDate(p.mediaMetadata?.creationTime)}</div>
+        </div>`;
+
+      inactive.classList.remove('active');
+      active.classList.add('active');
+
+      // Progress bar
+      const bar = document.getElementById('progress-bar');
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+      requestAnimationFrame(() => {
+        bar.style.transition = `width ${delay}ms linear`;
+        bar.style.width = '100%';
+      });
+
+      document.getElementById('show-counter').textContent = `${i + 1} / ${photos.length}`;
+    }
+
+    function next() {
+      idx = (idx + 1) % photos.length;
+      show(idx);
+    }
+
+    function prev() {
+      idx = (idx - 1 + photos.length) % photos.length;
+      show(idx);
+    }
+
+    function play() {
+      playing = true;
+      document.getElementById('ctrl-play').textContent = '⏸';
+      show(idx);
+      timer = setInterval(next, delay);
+    }
+
+    function pause() {
+      playing = false;
+      document.getElementById('ctrl-play').textContent = '▶';
+      clearInterval(timer);
+      document.getElementById('progress-bar').style.transition = 'none';
+    }
+
+    function togglePlay() { playing ? pause() : play(); }
+
+    function setDelay(ms) {
+      delay = ms;
+      if (playing) { pause(); play(); }
+    }
+
+    function doShuffle() {
+      photos = shuffle(photos);
+      idx = 0;
+      if (playing) { pause(); play(); } else show(idx);
+    }
+
+    function close() {
+      pause();
+      document.getElementById('show-wrap').style.display = 'none';
+      document.body.classList.remove('in-show');
+      // Reset for re-use
+      frames.forEach(f => { f.innerHTML = ''; f.classList.remove('active'); });
+    }
+
+    return { init, next, prev, togglePlay, setDelay, doShuffle, close };
+  })();
+
+  // Controls wiring
+  document.getElementById('ctrl-prev').addEventListener('click', () => Show.prev());
+  document.getElementById('ctrl-next').addEventListener('click', () => Show.next());
+  document.getElementById('ctrl-play').addEventListener('click', () => Show.togglePlay());
+  document.getElementById('ctrl-shuffle').addEventListener('click', () => Show.doShuffle());
+  document.getElementById('show-close').addEventListener('click', () => Show.close());
+  document.getElementById('speed-sel').addEventListener('change', e => Show.setDelay(+e.target.value));
+  document.getElementById('ctrl-fs').addEventListener('click', () => {
+    if (!document.fullscreenElement) document.getElementById('show-wrap').requestFullscreen();
+    else document.exitFullscreen();
+  });
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    const wrap = document.getElementById('show-wrap');
+    if (wrap.style.display === 'none') return;
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); Show.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); Show.prev(); }
+    if (e.key === 'Escape') Show.close();
+    if (e.key === 'p' || e.key === 'P') Show.togglePlay();
+  });
+
+  // Touch / swipe
+  let touchX = null;
+  document.getElementById('stage').addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+  document.getElementById('stage').addEventListener('touchend', e => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) { dx < 0 ? Show.next() : Show.prev(); }
+    touchX = null;
+  });
+
+  // ── Album picker ──────────────────────────────────────────────
+  async function loadPicker(token) {
+    const list = document.getElementById('album-pick-list');
+    try {
+      const albums = await cachedAlbums(token);
+      if (!albums.length) { list.innerHTML = '<li class="empty">No albums found.</li>'; return; }
+
+      list.innerHTML = albums.map(a => `
+        <li class="album-pick-item" data-id="${a.id}" data-title="${encodeURIComponent(a.title || 'Album')}">
+          ${a.coverPhotoBaseUrl
+            ? `<img class="album-pick-thumb" src="${API.url(a.coverPhotoBaseUrl,'thumb')}" alt="">`
+            : `<div class="album-pick-thumb" style="display:flex;align-items:center;justify-content:center;font-size:1.5rem;">&#128247;</div>`}
+          <div>
+            <div class="album-pick-name">${a.title || 'Untitled'}</div>
+            <div class="album-pick-count">${a.mediaItemsCount || '?'} photos</div>
+          </div>
+        </li>`).join('');
+
+      list.querySelectorAll('.album-pick-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const id = item.dataset.id;
+          const title = decodeURIComponent(item.dataset.title);
+          item.style.opacity = '.5';
+          item.style.pointerEvents = 'none';
+          const photos = await API.photosInAlbum(token, id);
+          Show.init(photos, title);
+          item.style.opacity = '';
+          item.style.pointerEvents = '';
+        });
+      });
+    } catch(e) {
+      handleAuthError(e);
+      list.innerHTML = '<li class="empty">Could not load albums.</li>';
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────
+  window.addEventListener('load', async () => {
+    Auth.init(null, null);
+    const token = Auth.getToken();
+    if (!token) { window.location.href = 'index.html'; return; }
+
+    // If launched from events/people page with pre-loaded photos
+    const stored = sessionStorage.getItem('ss_photos');
+    const title  = sessionStorage.getItem('ss_title');
+    if (stored) {
+      sessionStorage.removeItem('ss_photos');
+      sessionStorage.removeItem('ss_title');
+      const photos = JSON.parse(stored);
+      // Small delay so page renders first
+      setTimeout(() => Show.init(photos, title || 'Slideshow'), 100);
+    }
+
+    // Start-all button: play recent photos
+    document.getElementById('start-all-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('start-all-btn');
+      btn.textContent = 'Loading…';
+      btn.disabled = true;
+      try {
+        const photos = await API.recent(token, 100);
+        Show.init(photos, 'Recent Photos');
+      } catch(e) { handleAuthError(e); }
+      btn.textContent = '▶ Play All Recent Photos';
+      btn.disabled = false;
+    });
+
+    loadPicker(token);
+  });
+</script>
+</body>
+</html>
