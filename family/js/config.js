@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 const CONFIG = {
   // Google OAuth Client ID (from Google Cloud Console)
-  CLIENT_ID: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+  CLIENT_ID: '128135700024-3p60kqilcuj79qkr8ump8mh7pukmh0ul.apps.googleusercontent.com',
 
   // Your family name shown in the header
   FAMILY_NAME: 'Theeke',
