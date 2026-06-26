@@ -189,7 +189,7 @@ section { padding: 5rem 2rem; }
     background: radial-gradient(ellipse at center top, #1c1710 0%, #0d0d0d 60%);
     position: relative;
 }
-.hero-logo { height: 80px; margin: 0 auto 2.5rem; }
+.hero-logo { height: 160px; margin: 0 auto 2rem; }
 .hero-title {
     font-size: 0.75rem;
     letter-spacing: 0.4em;
