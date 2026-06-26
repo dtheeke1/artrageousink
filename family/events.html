@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events | Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<nav id="nav">
+  <a href="index.html" class="nav-brand">The <em>Theeke</em> Family</a>
+  <ul id="nav-links">
+    <li><a class="nav-link" href="index.html">Home</a></li>
+    <li><a class="nav-link" href="events.html">Events</a></li>
+    <li><a class="nav-link" href="people.html">People</a></li>
+    <li><a class="nav-link" href="slideshow.html">Slideshow</a></li>
+    <li><a class="nav-link" href="collage.html">Collages</a></li>
+  </ul>
+  <button id="signout-btn">Sign out</button>
+  <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="page">
+  <div class="wrap">
+
+    <!-- Albums list view -->
+    <div id="albums-view">
+      <p class="eyebrow">Browse</p>
+      <h1 class="page-title">Events &amp; Albums</h1>
+      <div class="rule"></div>
+      <p style="color:var(--ink2); margin-bottom:2rem;">Every album in your Google Photos library. Google automatically groups your photos into events.</p>
+
+      <!-- Year filter bar -->
+      <div id="year-filters" style="display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:2rem;"></div>
+
+      <div id="albums-grid" class="album-grid"></div>
+    </div>
+
+    <!-- Single album / photo grid view -->
+    <div id="album-view" style="display:none;">
+      <div class="breadcrumb">
+        <a href="#" id="back-btn">&#8592; Events</a>
+        <span>&#47;</span>
+        <span id="album-name-crumb"></span>
+      </div>
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
+        <div>
+          <h1 class="page-title" id="album-title-heading"></h1>
+          <p id="album-photo-count" style="color:var(--ink3); font-size:.88rem;"></p>
+        </div>
+        <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+          <button id="slideshow-btn" class="btn btn-primary btn-sm">&#9654; Slideshow</button>
+          <button id="collage-btn"   class="btn btn-outline btn-sm">&#9638; Collage</button>
+        </div>
+      </div>
+      <div id="album-photo-grid" class="grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <button id="lb-close" onclick="Lightbox.close()">&#10005;</button>
+  <div class="lb-wrap">
+    <div id="lb-media"></div>
+    <div class="lb-info">
+      <span id="lb-date"></span>
+      <span id="lb-count"></span>
+    </div>
+  </div>
+  <button class="lb-btn" id="lb-prev" onclick="Lightbox.prev()">&#8249;</button>
+  <button class="lb-btn" id="lb-next" onclick="Lightbox.next()">&#8250;</button>
+</div>
+
+<footer><span>The Theeke Family &mdash; Private</span></footer>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  let allAlbums = [];
+  let currentPhotos = [];
+
+  // ── Album list ────────────────────────────────────────────
+  async function loadAlbums(token) {
+    const grid = document.getElementById('albums-grid');
+    showSpinner(grid, 'Loading events…');
+    try {
+      allAlbums = await cachedAlbums(token);
+
+      // Sort by creation time descending (newest first)
+      allAlbums.sort((a, b) => {
+        const ta = a.coverPhotoMediaItemId || a.id;
+        const tb = b.coverPhotoMediaItemId || b.id;
+        return 0; // Google returns in creation order; keep as-is
+      });
+
+      // Build year filter buttons
+      buildYearFilters(allAlbums);
+      renderAlbums(allAlbums, grid);
+    } catch(e) {
+      handleAuthError(e);
+      showError(grid, 'Could not load albums.');
+    }
+  }
+
+  function buildYearFilters(albums) {
+    const bar = document.getElementById('year-filters');
+    const years = new Set();
+    albums.forEach(a => {
+      // try to extract year from title like "December 2022" or "2022"
+      const m = a.title?.match(/\b(19|20)\d{2}\b/);
+      if (m) years.add(m[0]);
+    });
+    if (!years.size) return;
+
+    const sorted = [...years].sort((a,b) => b-a);
+    bar.innerHTML = `<button class="btn btn-sm btn-ghost year-btn active" data-year="all">All</button>`
+      + sorted.map(y => `<button class="btn btn-sm btn-ghost year-btn" data-year="${y}">${y}</button>`).join('');
+
+    bar.querySelectorAll('.year-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        bar.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const yr = btn.dataset.year;
+        const filtered = yr === 'all' ? allAlbums : allAlbums.filter(a => a.title?.includes(yr));
+        renderAlbums(filtered, document.getElementById('albums-grid'));
+      });
+    });
+  }
+
+  function renderAlbums(albums, container) {
+    if (!albums.length) { container.innerHTML = '<p class="empty">No albums found.</p>'; return; }
+    container.innerHTML = albums.map(a => `
+      <div class="album-card" data-id="${a.id}" data-title="${encodeURIComponent(a.title || 'Album')}">
+        <div class="album-thumb">
+          ${a.coverPhotoBaseUrl
+            ? `<img src="${API.url(a.coverPhotoBaseUrl,'thumb')}" alt="" loading="lazy">`
+            : `<div style="width:100%;height:100%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">&#128247;</div>`}
+          <span class="count-badge">${a.mediaItemsCount || ''} photos</span>
+        </div>
+        <div class="album-info">
+          <div class="album-title">${a.title || 'Untitled'}</div>
+        </div>
+      </div>`).join('');
+
+    container.querySelectorAll('.album-card').forEach(card =>
+      card.addEventListener('click', () =>
+        openAlbum(card.dataset.id, decodeURIComponent(card.dataset.title), Auth.getToken())
+      )
+    );
+  }
+
+  // ── Single album ──────────────────────────────────────────
+  async function openAlbum(id, title, token) {
+    document.getElementById('albums-view').style.display = 'none';
+    const av = document.getElementById('album-view');
+    av.style.display = '';
+    document.getElementById('album-title-heading').textContent = title;
+    document.getElementById('album-name-crumb').textContent = title;
+
+    const grid = document.getElementById('album-photo-grid');
+    showSpinner(grid, 'Loading photos…');
+    try {
+      currentPhotos = await API.photosInAlbum(token, id);
+      document.getElementById('album-photo-count').textContent =
+        `${currentPhotos.length} photo${currentPhotos.length !== 1 ? 's' : ''}`;
+      buildGrid(currentPhotos, grid, i => Lightbox.open(currentPhotos, i));
+
+      document.getElementById('slideshow-btn').onclick = () => {
+        sessionStorage.setItem('ss_photos', JSON.stringify(currentPhotos));
+        sessionStorage.setItem('ss_title', title);
+        window.location.href = 'slideshow.html?src=album';
+      };
+      document.getElementById('collage-btn').onclick = () => {
+        sessionStorage.setItem('collage_photos', JSON.stringify(currentPhotos));
+        sessionStorage.setItem('collage_title', title);
+        window.location.href = 'collage.html?src=album';
+      };
+    } catch(e) {
+      handleAuthError(e);
+      showError(grid, 'Could not load photos for this album.');
+    }
+  }
+
+  document.getElementById('back-btn').addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById('album-view').style.display = 'none';
+    document.getElementById('albums-view').style.display = '';
+  });
+
+  // ── Boot ──────────────────────────────────────────────────
+  window.addEventListener('load', () => {
+    Auth.init(null, null);
+    const token = Auth.getToken();
+    if (!token) { window.location.href = 'index.html'; return; }
+    loadAlbums(token);
+  });
+</script>
+</body>
+</html>

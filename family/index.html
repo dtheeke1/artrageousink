@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Join-albums card */
+    .join-card {
+      background: var(--surface); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 1.5rem 2rem;
+      margin: 0 1.5rem 0; max-width: 640px;
+      border-left: 3px solid var(--gold);
+    }
+    .join-card h3 { font-family: var(--ff-serif); font-size: 1.1rem; margin-bottom: .35rem; }
+    .join-card p  { font-size: .85rem; color: var(--ink2); margin-bottom: 1rem; }
+    .join-album-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+    .join-album-row a {
+      font-size: .82rem; color: var(--gold); text-decoration: underline; flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .join-album-row .join-status {
+      font-size: .75rem; padding: .2rem .55rem; border-radius: 20px; white-space: nowrap;
+    }
+    .join-status.pending  { background: #fff3cd; color: #856404; }
+    .join-status.joined   { background: #d1e7dd; color: #0f5132; }
+    .join-status.failed   { background: #f8d7da; color: #842029; }
+    .join-url-form { display: flex; gap: .5rem; margin-top: 1rem; }
+    .join-url-input {
+      flex: 1; padding: .5rem .75rem; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: .82rem; color: var(--ink);
+      background: var(--bg);
+    }
+    .join-url-input:focus { outline: none; border-color: var(--green); }
+    .join-dismiss {
+      background: none; border: none; color: var(--ink3); font-size: .78rem;
+      margin-top: .75rem; cursor: pointer; padding: 0;
+    }
+    .join-dismiss:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- NAV (hidden until connected) -->
+<nav id="nav" style="display:none;">
+  <a href="index.html" class="nav-brand">The <em>Theeke</em> Family</a>
+  <ul id="nav-links">
+    <li><a class="nav-link" href="index.html">Home</a></li>
+    <li><a class="nav-link" href="events.html">Events</a></li>
+    <li><a class="nav-link" href="people.html">People</a></li>
+    <li><a class="nav-link" href="slideshow.html">Slideshow</a></li>
+    <li><a class="nav-link" href="collage.html">Collages</a></li>
+  </ul>
+  <button id="signout-btn">Sign out</button>
+  <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+
+<!-- CONNECT SCREEN -->
+<div id="connect-screen" class="connect-screen" style="display:none;">
+  <p class="eyebrow">Private Family Site</p>
+  <h1 class="big-name">The <em>Theeke</em><br>Family</h1>
+  <p>Your family photos, organized by moments and people. Syncs automatically with your Google Photos — no uploading, no forms.</p>
+  <button class="connect-btn" id="connect-btn">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+    Connect Google Photos
+  </button>
+  <p class="setup-note" id="setup-note"></p>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none;">
+
+  <!-- Join-albums card (shown until dismissed) -->
+  <div id="join-card-wrap" style="padding: calc(var(--nav-h) + 1.25rem) 0 0; display:none;">
+    <div class="join-card">
+      <h3>&#128247; Your Family Albums</h3>
+      <p>These shared albums were added to the site. If they don't appear in <a href="events.html">Events</a>, click the link below, copy the full URL from your browser's address bar, and paste it into the box.</p>
+
+      <div id="join-albums-list"></div>
+
+      <div class="join-url-form">
+        <input class="join-url-input" id="join-url-input"
+               placeholder="Paste full photos.google.com URL here to join…">
+        <button class="btn btn-gold btn-sm" id="join-url-btn">Join</button>
+      </div>
+      <button class="join-dismiss" id="join-dismiss">Dismiss — my albums are already showing up</button>
+    </div>
+  </div>
+
+  <!-- Photo feed -->
+  <div class="hero-feed" style="padding-top:0;" id="feed-wrap">
+    <div class="feed-header wrap">
+      <div>
+        <p class="eyebrow">Latest</p>
+        <h1 style="font-family:var(--ff-serif); font-size:1.6rem;">Recent Photos</h1>
+      </div>
+      <div class="feed-actions">
+        <a href="slideshow.html" class="btn btn-outline btn-sm">&#9654; Slideshow</a>
+        <a href="events.html"   class="btn btn-ghost  btn-sm">Browse Events</a>
+      </div>
+    </div>
+    <div id="feed" class="masonry"></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <button id="lb-close" onclick="Lightbox.close()">&#10005;</button>
+  <div class="lb-wrap">
+    <div id="lb-media"></div>
+    <div class="lb-info">
+      <span id="lb-date"></span>
+      <span id="lb-count"></span>
+    </div>
+  </div>
+  <button class="lb-btn" id="lb-prev" onclick="Lightbox.prev()">&#8249;</button>
+  <button class="lb-btn" id="lb-next" onclick="Lightbox.next()">&#8250;</button>
+</div>
+
+<footer><span>The Theeke Family &mdash; Private</span></footer>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  let allPhotos = [];
+  const DISMISSED_KEY = 'join_card_dismissed';
+
+  // ── Feed ───────────────────────────────────────────────────
+  async function loadFeed(token) {
+    const feed = document.getElementById('feed');
+    showSpinner(feed, 'Loading your photos…');
+    try {
+      allPhotos = await API.recent(token, CONFIG.RECENT_COUNT);
+      if (!allPhotos.length) {
+        feed.innerHTML = '<p class="empty">No photos found in your library.</p>';
+        return;
+      }
+      feed.innerHTML = allPhotos.map((p, i) => `
+        <div class="masonry-item" data-index="${i}">
+          <img src="${API.url(p.baseUrl,'thumb')}" alt="" loading="lazy">
+          <div class="masonry-overlay">${fmtDate(p.mediaMetadata?.creationTime)}</div>
+        </div>`).join('');
+      feed.querySelectorAll('.masonry-item').forEach(el =>
+        el.addEventListener('click', () => Lightbox.open(allPhotos, +el.dataset.index))
+      );
+    } catch(e) {
+      handleAuthError(e);
+      showError(feed, 'Could not load photos. Please try reconnecting.');
+    }
+  }
+
+  // ── Join-albums card ───────────────────────────────────────
+  function showJoinCard(token) {
+    if (sessionStorage.getItem(DISMISSED_KEY)) return;
+    const urls = CONFIG.SHARED_ALBUM_URLS || [];
+    if (!urls.length) return;
+
+    const card = document.getElementById('join-card-wrap');
+    const list = document.getElementById('join-albums-list');
+    card.style.display = '';
+
+    // Render rows for each album URL
+    list.innerHTML = urls.map((url, i) => `
+      <div class="join-album-row" id="join-row-${i}">
+        <a href="${url}" target="_blank" rel="noopener">${url}</a>
+        <span class="join-status pending" id="join-status-${i}">pending</span>
+        <button class="btn btn-ghost btn-sm" onclick="autoJoin(${i},'${url}')">Join</button>
+      </div>`).join('');
+
+    // Try auto-joining each
+    urls.forEach((url, i) => autoJoin(i, url, token));
+  }
+
+  async function autoJoin(i, url, token) {
+    token = token || Auth.getToken();
+    const statusEl = document.getElementById(`join-status-${i}`);
+    if (!statusEl) return;
+    statusEl.textContent = 'joining…';
+    statusEl.className = 'join-status pending';
+    const result = await joinAlbumFromUrl(token, url);
+    if (result) {
+      statusEl.textContent = 'joined ✓';
+      statusEl.className = 'join-status joined';
+    } else {
+      // Short URLs can't be auto-joined without the full URL — this is expected
+      statusEl.textContent = 'needs full URL';
+      statusEl.className = 'join-status failed';
+    }
+  }
+
+  document.getElementById('join-url-btn')?.addEventListener('click', async () => {
+    const input = document.getElementById('join-url-input');
+    const url = input.value.trim();
+    if (!url || !url.includes('photos.google.com')) {
+      input.style.borderColor = 'red';
+      setTimeout(() => input.style.borderColor = '', 2000);
+      return;
+    }
+    const btn = document.getElementById('join-url-btn');
+    btn.textContent = '…'; btn.disabled = true;
+    const result = await joinAlbumFromUrl(Auth.getToken(), url);
+    if (result) {
+      input.value = '';
+      btn.textContent = '✓'; btn.style.background = 'var(--green)';
+      // Reload the feed so new album appears in events
+      setTimeout(() => { btn.textContent = 'Join'; btn.disabled = false; btn.style.background = ''; }, 2000);
+    } else {
+      btn.textContent = 'Failed'; btn.disabled = false;
+      setTimeout(() => { btn.textContent = 'Join'; }, 2000);
+    }
+  });
+
+  document.getElementById('join-dismiss')?.addEventListener('click', () => {
+    sessionStorage.setItem(DISMISSED_KEY, '1');
+    document.getElementById('join-card-wrap').style.display = 'none';
+    // Remove top padding from feed
+    document.getElementById('feed-wrap').style.paddingTop = '';
+  });
+
+  // ── Screens ────────────────────────────────────────────────
+  function showConnectScreen() {
+    document.getElementById('connect-screen').style.display = '';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('nav').style.display = 'none';
+  }
+
+  function showApp(token) {
+    document.getElementById('connect-screen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('nav').style.display = '';
+    loadFeed(token);
+    showJoinCard(token);
+  }
+
+  // ── Boot ───────────────────────────────────────────────────
+  window.addEventListener('load', () => {
+    if (!CONFIG.CLIENT_ID || CONFIG.CLIENT_ID.startsWith('YOUR_')) {
+      showConnectScreen();
+      document.getElementById('setup-note').innerHTML =
+        'One-time setup required. See <a href="SETUP.md">SETUP.md</a> to connect your Google Photos.';
+      document.getElementById('connect-btn').disabled = true;
+      document.getElementById('connect-btn').style.opacity = '.5';
+      return;
+    }
+
+    if (new URLSearchParams(location.search).get('expired')) {
+      showConnectScreen();
+      document.getElementById('setup-note').textContent = 'Session expired — please reconnect.';
+    }
+
+    const token = Auth.getToken();
+    if (token) {
+      showApp(token);
+    } else {
+      showConnectScreen();
+    }
+
+    Auth.init(
+      (t)   => showApp(t),
+      (err) => {
+        showConnectScreen();
+        document.getElementById('setup-note').textContent =
+          err === 'not_configured'
+            ? 'See SETUP.md to connect your Google Photos account.'
+            : 'Sign-in failed. Please try again.';
+      }
+    );
+
+    document.getElementById('connect-btn').addEventListener('click', () => Auth.connect());
+  });
+</script>
+</body>
+</html>

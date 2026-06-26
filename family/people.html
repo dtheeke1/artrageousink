@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>People | Theeke Family</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<nav id="nav">
+  <a href="index.html" class="nav-brand">The <em>Theeke</em> Family</a>
+  <ul id="nav-links">
+    <li><a class="nav-link" href="index.html">Home</a></li>
+    <li><a class="nav-link" href="events.html">Events</a></li>
+    <li><a class="nav-link" href="people.html">People</a></li>
+    <li><a class="nav-link" href="slideshow.html">Slideshow</a></li>
+    <li><a class="nav-link" href="collage.html">Collages</a></li>
+  </ul>
+  <button id="signout-btn">Sign out</button>
+  <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+
+<div class="page">
+  <div class="wrap">
+
+    <!-- People grid -->
+    <div id="people-view">
+      <p class="eyebrow">Browse by person</p>
+      <h1 class="page-title">People</h1>
+      <div class="rule"></div>
+      <p style="color:var(--ink2); margin-bottom:2rem;">
+        Albums named after family members appear here automatically. Each person card shows all photos in their album.
+        <br><small style="color:var(--ink3);">To add someone: create an album in Google Photos named after them — it shows up here instantly.</small>
+      </p>
+      <div id="people-grid" class="people-grid"></div>
+
+      <!-- All photos with people (Google PEOPLE category) -->
+      <div style="margin-top:3rem; border-top:1px solid var(--border); padding-top:2.5rem;">
+        <h2 class="section-title">All Photos with People</h2>
+        <div class="rule"></div>
+        <p style="color:var(--ink2); margin-bottom:1.5rem; font-size:.9rem;">Every photo Google identifies as containing people, across your whole library.</p>
+        <div id="people-photos" class="grid"></div>
+      </div>
+    </div>
+
+    <!-- Single person view -->
+    <div id="person-view" style="display:none;">
+      <div class="breadcrumb">
+        <a href="#" id="back-btn">&#8592; People</a>
+        <span>&#47;</span>
+        <span id="person-name-crumb"></span>
+      </div>
+      <div style="display:flex; align-items:center; gap:1.5rem; margin-bottom:2rem; flex-wrap:wrap;">
+        <div id="person-avatar-lg" class="person-avatar" style="width:80px;height:80px;flex-shrink:0;"></div>
+        <div>
+          <h1 class="page-title" id="person-title"></h1>
+          <p id="person-count" style="color:var(--ink3); font-size:.88rem;"></p>
+        </div>
+        <div style="margin-left:auto; display:flex; gap:.75rem; flex-wrap:wrap;">
+          <button id="person-slideshow-btn" class="btn btn-primary btn-sm">&#9654; Slideshow</button>
+          <button id="person-collage-btn"   class="btn btn-outline btn-sm">&#9638; Collage</button>
+        </div>
+      </div>
+      <div id="person-photo-grid" class="grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <button id="lb-close" onclick="Lightbox.close()">&#10005;</button>
+  <div class="lb-wrap">
+    <div id="lb-media"></div>
+    <div class="lb-info">
+      <span id="lb-date"></span>
+      <span id="lb-count"></span>
+    </div>
+  </div>
+  <button class="lb-btn" id="lb-prev" onclick="Lightbox.prev()">&#8249;</button>
+  <button class="lb-btn" id="lb-next" onclick="Lightbox.next()">&#8250;</button>
+</div>
+
+<footer><span>The Theeke Family &mdash; Private</span></footer>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  let personAlbums = [];
+  let currentPersonPhotos = [];
+
+  async function load(token) {
+    const grid = document.getElementById('people-grid');
+    const allGrid = document.getElementById('people-photos');
+    showSpinner(grid, 'Finding family albums…');
+
+    try {
+      const albums = await cachedAlbums(token);
+
+      // Filter albums whose title matches a family member name
+      personAlbums = albums.filter(a => isPeopleAlbum(a.title));
+
+      if (!personAlbums.length) {
+        grid.innerHTML = `
+          <div class="error-box" style="grid-column:1/-1;">
+            <p>No people albums found yet.</p>
+            <p style="margin-top:.5rem; font-size:.88rem; color:var(--ink3);">
+              In Google Photos, create an album named after each family member
+              (like "David" or "Jake") and it will appear here automatically.
+            </p>
+          </div>`;
+      } else {
+        grid.innerHTML = personAlbums.map(a => `
+          <div class="person-card" data-id="${a.id}" data-name="${encodeURIComponent(a.title)}">
+            <div class="person-avatar">
+              ${a.coverPhotoBaseUrl
+                ? `<img src="${API.url(a.coverPhotoBaseUrl,'thumb')}" alt="">`
+                : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;">&#128100;</div>`}
+            </div>
+            <div class="person-name">${a.title}</div>
+            <div class="person-count">${a.mediaItemsCount || '?'} photos</div>
+          </div>`).join('');
+
+        grid.querySelectorAll('.person-card').forEach(card =>
+          card.addEventListener('click', () =>
+            openPerson(card.dataset.id, decodeURIComponent(card.dataset.name), token)
+          )
+        );
+      }
+
+      // Load all photos with people (Google PEOPLE category)
+      showSpinner(allGrid, 'Loading…');
+      try {
+        const peoplePhotos = await API.byCategory(token, 'PEOPLE');
+        buildGrid(peoplePhotos, allGrid, i => Lightbox.open(peoplePhotos, i));
+      } catch(e) {
+        allGrid.innerHTML = '<p class="empty">Could not load category photos.</p>';
+      }
+
+    } catch(e) {
+      handleAuthError(e);
+      showError(grid, 'Could not load people albums.');
+    }
+  }
+
+  async function openPerson(id, name, token) {
+    document.getElementById('people-view').style.display = 'none';
+    const pv = document.getElementById('person-view');
+    pv.style.display = '';
+    document.getElementById('person-title').textContent = name;
+    document.getElementById('person-name-crumb').textContent = name;
+
+    const album = personAlbums.find(a => a.id === id);
+    const avatarEl = document.getElementById('person-avatar-lg');
+    avatarEl.innerHTML = album?.coverPhotoBaseUrl
+      ? `<img src="${API.url(album.coverPhotoBaseUrl,'thumb')}" alt="">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;">&#128100;</div>`;
+
+    const grid = document.getElementById('person-photo-grid');
+    showSpinner(grid, `Loading ${name}'s photos…`);
+    try {
+      currentPersonPhotos = await API.photosInAlbum(token, id);
+      document.getElementById('person-count').textContent =
+        `${currentPersonPhotos.length} photo${currentPersonPhotos.length !== 1 ? 's' : ''}`;
+      buildGrid(currentPersonPhotos, grid, i => Lightbox.open(currentPersonPhotos, i));
+
+      document.getElementById('person-slideshow-btn').onclick = () => {
+        sessionStorage.setItem('ss_photos', JSON.stringify(currentPersonPhotos));
+        sessionStorage.setItem('ss_title', name);
+        window.location.href = 'slideshow.html?src=person';
+      };
+      document.getElementById('person-collage-btn').onclick = () => {
+        sessionStorage.setItem('collage_photos', JSON.stringify(currentPersonPhotos));
+        sessionStorage.setItem('collage_title', name);
+        window.location.href = 'collage.html?src=person';
+      };
+    } catch(e) {
+      handleAuthError(e);
+      showError(grid, 'Could not load photos.');
+    }
+  }
+
+  document.getElementById('back-btn').addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById('person-view').style.display = 'none';
+    document.getElementById('people-view').style.display = '';
+  });
+
+  window.addEventListener('load', () => {
+    Auth.init(null, null);
+    const token = Auth.getToken();
+    if (!token) { window.location.href = 'index.html'; return; }
+    load(token);
+  });
+</script>
+</body>
+</html>
