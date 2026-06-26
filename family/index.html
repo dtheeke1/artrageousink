@@ -6,6 +6,40 @@
   <title>Theeke Family</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Join-albums card */
+    .join-card {
+      background: var(--surface); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 1.5rem 2rem;
+      margin: 0 1.5rem 0; max-width: 640px;
+      border-left: 3px solid var(--gold);
+    }
+    .join-card h3 { font-family: var(--ff-serif); font-size: 1.1rem; margin-bottom: .35rem; }
+    .join-card p  { font-size: .85rem; color: var(--ink2); margin-bottom: 1rem; }
+    .join-album-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+    .join-album-row a {
+      font-size: .82rem; color: var(--gold); text-decoration: underline; flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .join-album-row .join-status {
+      font-size: .75rem; padding: .2rem .55rem; border-radius: 20px; white-space: nowrap;
+    }
+    .join-status.pending  { background: #fff3cd; color: #856404; }
+    .join-status.joined   { background: #d1e7dd; color: #0f5132; }
+    .join-status.failed   { background: #f8d7da; color: #842029; }
+    .join-url-form { display: flex; gap: .5rem; margin-top: 1rem; }
+    .join-url-input {
+      flex: 1; padding: .5rem .75rem; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: .82rem; color: var(--ink);
+      background: var(--bg);
+    }
+    .join-url-input:focus { outline: none; border-color: var(--green); }
+    .join-dismiss {
+      background: none; border: none; color: var(--ink3); font-size: .78rem;
+      margin-top: .75rem; cursor: pointer; padding: 0;
+    }
+    .join-dismiss:hover { color: var(--ink); }
+  </style>
 </head>
 <body>
 
@@ -26,7 +60,7 @@
   <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
 </nav>
 
-<!-- CONNECT SCREEN (shown when not authenticated) -->
+<!-- CONNECT SCREEN -->
 <div id="connect-screen" class="connect-screen" style="display:none;">
   <p class="eyebrow">Private Family Site</p>
   <h1 class="big-name">The <em>Theeke</em><br>Family</h1>
@@ -38,9 +72,28 @@
   <p class="setup-note" id="setup-note"></p>
 </div>
 
-<!-- MAIN APP (shown when authenticated) -->
+<!-- MAIN APP -->
 <div id="app" style="display:none;">
-  <div class="hero-feed">
+
+  <!-- Join-albums card (shown until dismissed) -->
+  <div id="join-card-wrap" style="padding: calc(var(--nav-h) + 1.25rem) 0 0; display:none;">
+    <div class="join-card">
+      <h3>&#128247; Your Family Albums</h3>
+      <p>These shared albums were added to the site. If they don't appear in <a href="events.html">Events</a>, click the link below, copy the full URL from your browser's address bar, and paste it into the box.</p>
+
+      <div id="join-albums-list"></div>
+
+      <div class="join-url-form">
+        <input class="join-url-input" id="join-url-input"
+               placeholder="Paste full photos.google.com URL here to join…">
+        <button class="btn btn-gold btn-sm" id="join-url-btn">Join</button>
+      </div>
+      <button class="join-dismiss" id="join-dismiss">Dismiss — my albums are already showing up</button>
+    </div>
+  </div>
+
+  <!-- Photo feed -->
+  <div class="hero-feed" style="padding-top:0;" id="feed-wrap">
     <div class="feed-header wrap">
       <div>
         <p class="eyebrow">Latest</p>
@@ -69,9 +122,7 @@
   <button class="lb-btn" id="lb-next" onclick="Lightbox.next()">&#8250;</button>
 </div>
 
-<footer>
-  <span>The Theeke Family &mdash; Private</span>
-</footer>
+<footer><span>The Theeke Family &mdash; Private</span></footer>
 
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
@@ -79,7 +130,9 @@
 <script src="js/app.js"></script>
 <script>
   let allPhotos = [];
+  const DISMISSED_KEY = 'join_card_dismissed';
 
+  // ── Feed ───────────────────────────────────────────────────
   async function loadFeed(token) {
     const feed = document.getElementById('feed');
     showSpinner(feed, 'Loading your photos…');
@@ -103,20 +156,91 @@
     }
   }
 
+  // ── Join-albums card ───────────────────────────────────────
+  function showJoinCard(token) {
+    if (sessionStorage.getItem(DISMISSED_KEY)) return;
+    const urls = CONFIG.SHARED_ALBUM_URLS || [];
+    if (!urls.length) return;
+
+    const card = document.getElementById('join-card-wrap');
+    const list = document.getElementById('join-albums-list');
+    card.style.display = '';
+
+    // Render rows for each album URL
+    list.innerHTML = urls.map((url, i) => `
+      <div class="join-album-row" id="join-row-${i}">
+        <a href="${url}" target="_blank" rel="noopener">${url}</a>
+        <span class="join-status pending" id="join-status-${i}">pending</span>
+        <button class="btn btn-ghost btn-sm" onclick="autoJoin(${i},'${url}')">Join</button>
+      </div>`).join('');
+
+    // Try auto-joining each
+    urls.forEach((url, i) => autoJoin(i, url, token));
+  }
+
+  async function autoJoin(i, url, token) {
+    token = token || Auth.getToken();
+    const statusEl = document.getElementById(`join-status-${i}`);
+    if (!statusEl) return;
+    statusEl.textContent = 'joining…';
+    statusEl.className = 'join-status pending';
+    const result = await joinAlbumFromUrl(token, url);
+    if (result) {
+      statusEl.textContent = 'joined ✓';
+      statusEl.className = 'join-status joined';
+    } else {
+      // Short URLs can't be auto-joined without the full URL — this is expected
+      statusEl.textContent = 'needs full URL';
+      statusEl.className = 'join-status failed';
+    }
+  }
+
+  document.getElementById('join-url-btn')?.addEventListener('click', async () => {
+    const input = document.getElementById('join-url-input');
+    const url = input.value.trim();
+    if (!url || !url.includes('photos.google.com')) {
+      input.style.borderColor = 'red';
+      setTimeout(() => input.style.borderColor = '', 2000);
+      return;
+    }
+    const btn = document.getElementById('join-url-btn');
+    btn.textContent = '…'; btn.disabled = true;
+    const result = await joinAlbumFromUrl(Auth.getToken(), url);
+    if (result) {
+      input.value = '';
+      btn.textContent = '✓'; btn.style.background = 'var(--green)';
+      // Reload the feed so new album appears in events
+      setTimeout(() => { btn.textContent = 'Join'; btn.disabled = false; btn.style.background = ''; }, 2000);
+    } else {
+      btn.textContent = 'Failed'; btn.disabled = false;
+      setTimeout(() => { btn.textContent = 'Join'; }, 2000);
+    }
+  });
+
+  document.getElementById('join-dismiss')?.addEventListener('click', () => {
+    sessionStorage.setItem(DISMISSED_KEY, '1');
+    document.getElementById('join-card-wrap').style.display = 'none';
+    // Remove top padding from feed
+    document.getElementById('feed-wrap').style.paddingTop = '';
+  });
+
+  // ── Screens ────────────────────────────────────────────────
   function showConnectScreen() {
     document.getElementById('connect-screen').style.display = '';
     document.getElementById('app').style.display = 'none';
     document.getElementById('nav').style.display = 'none';
   }
 
-  function showApp() {
+  function showApp(token) {
     document.getElementById('connect-screen').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('nav').style.display = '';
+    loadFeed(token);
+    showJoinCard(token);
   }
 
+  // ── Boot ───────────────────────────────────────────────────
   window.addEventListener('load', () => {
-    // Check for not-configured state
     if (!CONFIG.CLIENT_ID || CONFIG.CLIENT_ID.startsWith('YOUR_')) {
       showConnectScreen();
       document.getElementById('setup-note').innerHTML =
@@ -133,15 +257,14 @@
 
     const token = Auth.getToken();
     if (token) {
-      showApp();
-      loadFeed(token);
+      showApp(token);
     } else {
       showConnectScreen();
     }
 
     Auth.init(
-      (token) => { showApp(); loadFeed(token); },
-      (err)   => {
+      (t)   => showApp(t),
+      (err) => {
         showConnectScreen();
         document.getElementById('setup-note').textContent =
           err === 'not_configured'

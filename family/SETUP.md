@@ -68,11 +68,24 @@ Those albums will appear in the **People** section automatically.
 
 ---
 
-## Step 6 — Sharing Your Google Photos Album
+## Step 6 — Your Two Family Albums
 
-If you have a shared Google Family album link (like `https://photos.google.com/share/...`),
-the site will pick it up automatically when you sign in — Google Photos includes
-shared albums in your library.
+Your shared albums are already saved in the site:
+```
+https://photos.app.goo.gl/d4CFPEyxfiex2mRx6
+https://photos.app.goo.gl/ktXZKcBKdxW338dKA
+```
+
+**If you're the owner of these albums:** They will appear automatically in the Events
+page as soon as you sign in with your Google account. No extra steps needed.
+
+**If the albums don't appear automatically:**
+1. Click one of the short links above in your browser
+2. It will open the album in Google Photos
+3. Copy the full URL from your address bar — it will look like:
+   `https://photos.google.com/share/AF1Qip.../...?key=ABCDEF...`
+4. On the family site home page, paste that full URL into the "Join Album" box
+5. Click Join — the album is now linked and appears in Events
 
 ---
 

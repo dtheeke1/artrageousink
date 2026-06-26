@@ -42,13 +42,48 @@ function chunk(arr, size) {
 }
 
 // ── Session-cached API calls ──────────────────────────────────
+// Fetches owned albums + any shared albums and merges them (deduped by id).
 async function cachedAlbums(token) {
-  const key = 'cache_albums';
-  const cached = sessionStorage.getItem(key);
+  const KEY = 'cache_albums';
+  const cached = sessionStorage.getItem(KEY);
   if (cached) return JSON.parse(cached);
-  const albums = await API.albums(token);
-  sessionStorage.setItem(key, JSON.stringify(albums));
-  return albums;
+
+  const [owned, shared] = await Promise.all([
+    API.albums(token),
+    API.sharedAlbums(token).catch(() => []),
+  ]);
+
+  const seen = new Set();
+  const all = [];
+  for (const a of [...owned, ...shared]) {
+    if (!seen.has(a.id)) { seen.add(a.id); all.push(a); }
+  }
+
+  sessionStorage.setItem(KEY, JSON.stringify(all));
+  return all;
+}
+
+// ── Join a shared album from a full Google Photos URL ─────────
+// URL format: https://photos.google.com/share/...?key=SHARETOKEN
+async function joinAlbumFromUrl(token, url) {
+  let shareToken = null;
+  try {
+    const u = new URL(url);
+    shareToken = u.searchParams.get('key');
+    // Sometimes the token is in the path: /share/AF1Qip.../...?key=...
+    // Fall back to path parsing if no key param
+    if (!shareToken) {
+      const parts = u.pathname.split('/');
+      shareToken = parts[parts.indexOf('share') + 1] || null;
+    }
+  } catch(e) { return null; }
+  if (!shareToken) return null;
+  try {
+    const result = await API.joinSharedAlbum(token, shareToken);
+    // Bust the cache so the new album appears
+    sessionStorage.removeItem('cache_albums');
+    return result?.album || result;
+  } catch(e) { return null; }
 }
 
 // ── Detect if album title matches a person name ───────────────

@@ -19,4 +19,15 @@ const CONFIG = {
 
   // How many recent photos to show on the home feed
   RECENT_COUNT: 60,
+
+  // Your shared Google Photos album links.
+  // When you sign in, these will be joined automatically so they appear
+  // in Events. If they already appear in your library, no action needed.
+  // To get the shareToken: open the link in your browser, then copy the
+  // full URL from the address bar (it will start with photos.google.com)
+  // and paste it into the "Join Album" prompt on the home page.
+  SHARED_ALBUM_URLS: [
+    'https://photos.app.goo.gl/d4CFPEyxfiex2mRx6',
+    'https://photos.app.goo.gl/ktXZKcBKdxW338dKA',
+  ],
 };
