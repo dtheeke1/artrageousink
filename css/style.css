@@ -1,4 +1,4 @@
-.hero-video-wrap { position: relative; width: 100%; max-width: 900px; margin: 1.5rem auto; }
+.hero-video-wrap { position: relative; width: 100%; max-width: 900px; margin: 0.75rem auto; }
 .hero-video-wrap video { width: 100%; border-radius: 4px; display: block; }
 #unmute-btn { position: absolute; bottom: 0.75rem; right: 0.75rem; background: rgba(0,0,0,0.6); border: 1px solid #c9a84c; color: #c9a84c; border-radius: 50%; width: 2.2rem; height: 2.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 #unmute-btn:hover { background: rgba(201,168,76,0.2); }
@@ -187,17 +187,16 @@ iframe { max-width: 100%; width: 100%; border: 0; }
 
 /* ===== HOME HERO ===== */
 #hero {
-    min-height: 92vh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 1.5rem 2rem 3rem;
+    padding: 1rem 2rem 2rem;
     background: radial-gradient(ellipse at center top, #1c1710 0%, #0d0d0d 60%);
     position: relative;
 }
-.hero-logo { height: 160px; margin: 0 auto 2rem; }
+.hero-logo { height: 160px; margin: 0 auto 1rem; }
 .hero-title {
     font-size: 0.75rem;
     letter-spacing: 0.4em;
@@ -227,7 +226,7 @@ iframe { max-width: 100%; width: 100%; border: 0; }
     letter-spacing: 0.15em;
     text-transform: uppercase;
     padding: 0.5rem 1.25rem;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1rem;
     border-radius: 2px;
 }
 .hero-cta { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
