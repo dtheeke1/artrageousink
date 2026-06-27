@@ -45,6 +45,19 @@
 <!-- HERO -->
 <section id="hero">
     <img src="images/logo.png" alt="Artrageous Ink" class="hero-logo">
+    <div class="hero-video-wrap">
+        <video id="hero-video" autoplay muted playsinline preload="auto">
+            <source src="videos/promo.mp4" type="video/mp4">
+        </video>
+        <button id="unmute-btn" onclick="toggleMute()" title="Toggle sound">
+            <span id="icon-muted">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            </span>
+            <span id="icon-sound" style="display:none;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </span>
+        </button>
+    </div>
     <p class="hero-title">Northeast Wisconsin's Premier Tattoo Studio</p>
     <p class="hero-sub">Custom tattoo designs in a clean, professional environment serving Green Bay since 1995.</p>
     <div class="hero-award">&#9733; Voted Best Tattoo Parlor Finalist — Green Bay Press Gazette — 19 Consecutive Years</div>
@@ -83,20 +96,6 @@
                     <div class="stat-label">Years of Experience</div>
                 </div>
             </div>
-        </div>
-    </div>
-</section>
-
-<!-- VIDEOS -->
-<section style="background:#0a0a0a;">
-    <div class="container">
-        <p class="section-label">See Our Work</p>
-        <h2 class="section-title">Watch &amp; Learn</h2>
-        <div class="divider"></div>
-        <div style="max-width:800px; margin:0 auto;">
-            <video controls preload="metadata" style="width:100%; border-radius:4px;">
-                <source src="videos/promo.mp4" type="video/mp4">
-            </video>
         </div>
     </div>
 </section>
@@ -246,6 +245,12 @@
     document.getElementById('hamburger').addEventListener('click', () => {
         document.getElementById('nav-links').classList.toggle('open');
     });
+    function toggleMute() {
+        const v = document.getElementById('hero-video');
+        v.muted = !v.muted;
+        document.getElementById('icon-muted').style.display = v.muted ? '' : 'none';
+        document.getElementById('icon-sound').style.display = v.muted ? 'none' : '';
+    }
 </script>
 </body>
 </html>

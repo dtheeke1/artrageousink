@@ -1,5 +1,7 @@
-.video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-@media (max-width: 700px) { .video-grid { grid-template-columns: 1fr; } }
+.hero-video-wrap { position: relative; width: 100%; max-width: 900px; margin: 1.5rem auto; }
+.hero-video-wrap video { width: 100%; border-radius: 4px; display: block; }
+#unmute-btn { position: absolute; bottom: 0.75rem; right: 0.75rem; background: rgba(0,0,0,0.6); border: 1px solid #c9a84c; color: #c9a84c; border-radius: 50%; width: 2.2rem; height: 2.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+#unmute-btn:hover { background: rgba(201,168,76,0.2); }
 
 /* ===== RESET & BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
