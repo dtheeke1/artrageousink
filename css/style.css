@@ -1,4 +1,4 @@
-.nav-wordmark { font-family: 'Lato', sans-serif; font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: #c9a84c !important; font-weight: 400; text-decoration: none; }
+.nav-wordmark { font-family: 'Dancing Script', cursive; font-size: 1.1rem; letter-spacing: 0.05em; color: #c9a84c !important; font-weight: 600; text-decoration: none; text-transform: none; }
 .hero-video-wrap { position: relative; width: 100%; max-width: 900px; margin: 0.75rem auto; }
 .hero-video-wrap video { width: 100%; border-radius: 4px; display: block; }
 #unmute-btn { position: absolute; bottom: 0.75rem; right: 0.75rem; background: rgba(0,0,0,0.6); border: 1px solid #c9a84c; color: #c9a84c; border-radius: 50%; width: 2.2rem; height: 2.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
