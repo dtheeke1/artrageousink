@@ -193,7 +193,7 @@ iframe { max-width: 100%; width: 100%; border: 0; }
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 5rem 2rem 3rem;
+    padding: 1.5rem 2rem 3rem;
     background: radial-gradient(ellipse at center top, #1c1710 0%, #0d0d0d 60%);
     position: relative;
 }

@@ -251,6 +251,12 @@
         document.getElementById('icon-muted').style.display = v.muted ? '' : 'none';
         document.getElementById('icon-sound').style.display = v.muted ? 'none' : '';
     }
+    const hv = document.getElementById('hero-video');
+    hv.addEventListener('timeupdate', function() {
+        if (this.duration && this.currentTime >= this.duration - 0.15) {
+            this.pause();
+        }
+    });
 </script>
 </body>
 </html>
