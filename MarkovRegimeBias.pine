@@ -86,6 +86,11 @@ i_colorBear   = input.color (color.new(#ff3b30, 0),  "Bear Colour",     group=gr
 i_colorSide   = input.color (color.new(#8e8e93, 0),  "Sideways Colour", group=grpVis)
 i_bgAlpha     = input.int   (93, "Background Tint Opacity (0=solid, 100=invisible)",
      minval=70, maxval=100, group=grpVis)
+i_showDayBias  = input.bool  (true,        "Show Day-Start Bias Triangles",   group=grpVis,
+     tooltip="Plots one marker at the FIRST bar of each trading day: green triangle up = Bullish, red triangle down = Bearish, yellow diamond = Neutral/Chop. On a 5-min chart this appears at the open bar. On the daily chart it sits on the candle itself — useful for auditing whether the signal was right.")
+i_colorNeutral = input.color (color.new(color.yellow, 0), "Neutral Marker Colour", group=grpVis)
+i_markerSize   = input.string("Normal",    "Day-Marker Size",
+     options=["Tiny","Small","Normal","Large"], group=grpVis)
 
 // ============================================================================
 // SECTION 2 — CONFIRMED DAILY DATA (NO LOOKAHEAD)
@@ -232,17 +237,43 @@ if i_showBgTint
             title="Bias Background Tint")
 
 // ============================================================================
-// SECTION 6 — HISTORICAL STATE MARKERS
+// SECTION 6 — VISUAL MARKERS
 // ============================================================================
-// Small triangles below/above each bar show the classified state for that bar.
-// Useful for visually auditing how often regimes flip and how the model behaves.
 
-plotshape(i_showHistory and curState == 0, title="Bull Marker",
+// ── Historical state markers (tiny, every bar) ───────────────────────────────
+// Shows the regime classification of every completed daily bar.
+// On intraday charts these repeat within the day — they track the daily state,
+// not the intraday bar's own price action.
+plotshape(i_showHistory and curState == 0, title="State: BULL",
           style=shape.triangleup, location=location.belowbar,
           color=i_colorBull, size=size.tiny)
-plotshape(i_showHistory and curState == 1, title="Bear Marker",
+plotshape(i_showHistory and curState == 1, title="State: BEAR",
           style=shape.triangledown, location=location.abovebar,
           color=i_colorBear, size=size.tiny)
+
+// ── Day-start bias triangles (once per day, larger) ──────────────────────────
+// Fires only on isDailyUpdate — the FIRST bar of each new trading day.
+// On a daily chart: sits on that day's candle → look at whether the candle
+//   closed above/below its open to audit the signal historically.
+// On a 5-minute chart: appears at the 9:30 AM (or session-open) bar →
+//   your daily bias signal without ever leaving the intraday chart.
+//
+// Green ▲ below bar = BULLISH bias for the day ahead
+// Red   ▼ above bar = BEARISH bias for the day ahead
+// Yellow ◆ below bar = NEUTRAL / Chop — no directional edge
+_mSz = i_markerSize == "Tiny"  ? size.tiny  :
+       i_markerSize == "Small" ? size.small :
+       i_markerSize == "Large" ? size.large : size.normal
+
+plotshape(i_showDayBias and isDailyUpdate and biasDir ==  1, title="Day Bias: BULLISH",
+          style=shape.triangleup,   location=location.belowbar,
+          color=i_colorBull,    size=_mSz)
+plotshape(i_showDayBias and isDailyUpdate and biasDir == -1, title="Day Bias: BEARISH",
+          style=shape.triangledown, location=location.abovebar,
+          color=i_colorBear,    size=_mSz)
+plotshape(i_showDayBias and isDailyUpdate and biasDir ==  0, title="Day Bias: NEUTRAL",
+          style=shape.diamond,      location=location.belowbar,
+          color=i_colorNeutral, size=_mSz)
 
 // ============================================================================
 // SECTION 7 — DASHBOARD TABLE
