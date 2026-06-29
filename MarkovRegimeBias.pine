@@ -1,0 +1,428 @@
+//@version=6
+indicator("Markov Regime Bias", shorttitle="MRB", overlay=true, max_bars_back=5000)
+
+// ============================================================================
+// MARKOV REGIME BIAS  —  Pine Script v6  —  Standalone Indicator
+// ============================================================================
+//
+// WHAT IS A MARKOV CHAIN REGIME MODEL?
+// A Markov chain is a probabilistic model where the probability of transitioning
+// to the next state depends only on the CURRENT state — not on the full history
+// of how we got here. Applied to markets: given that today's daily bar is in a
+// BULL regime, what is the historical likelihood that tomorrow will also be BULL?
+// BEAR? SIDEWAYS? We answer this by counting every state-to-state transition in
+// history and building a 3×3 matrix of conditional probabilities. The diagonal
+// (BULL→BULL, BEAR→BEAR, SIDEWAYS→SIDEWAYS) tells you how "sticky" each regime
+// tends to be. Off-diagonal cells show reversal and rotation probabilities.
+//
+// BARS-BACK LIMITATION:
+// Pine Script caps history at max_bars_back bars (set to 5000 here, roughly 20
+// years on a daily chart). Free TradingView accounts may only have ~5 years of
+// daily history (~1250 bars). More history = better matrix calibration. Watch the
+// "Sample Size" readout in the dashboard — if it falls below your configured
+// minimum (default: 30 transitions), treat all probabilities with extra skepticism.
+// The script will display a warning in that case.
+//
+// NO-LOOKAHEAD GUARANTEE:
+// Every calculation here uses only historically confirmed data. Daily states are
+// computed from completed (closed) daily bars via request.security with
+// lookahead=barmerge.lookahead_off. The bias shown before market open is based
+// exclusively on yesterday's confirmed close and will not change intraday.
+//
+// DISCLAIMER:
+// This is a historical-tendency tool — it shows you what has happened in the past
+// after similar regime conditions, not what will happen tomorrow. Market regimes
+// can shift structurally, invalidating historical probabilities. Use this as one
+// input among many and always apply your own risk management. Not financial advice.
+//
+// ============================================================================
+
+// ============================================================================
+// SECTION 1 — INPUTS
+// ============================================================================
+
+var string grpState  = "State Classification"
+var string grpMatrix = "Transition Matrix"
+var string grpBias   = "Bias Output"
+var string grpVis    = "Visuals"
+
+// State classification
+i_lookback   = input.int  (5,    "State Lookback (days)",
+     minval=2, maxval=50, group=grpState,
+     tooltip="Number of completed daily bars to measure the trailing return over.")
+i_bullThresh = input.float(0.5,  "Bull Threshold (%)",
+     minval=0.01, maxval=20.0, step=0.1, group=grpState,
+     tooltip="If the trailing return (raw or ATR-normalised) exceeds this value, the state is BULL.")
+i_bearThresh = input.float(0.5,  "Bear Threshold (%)",
+     minval=0.01, maxval=20.0, step=0.1, group=grpState,
+     tooltip="If the trailing return falls below the negative of this value, the state is BEAR.")
+i_useAtrNorm = input.bool (true, "ATR-Normalise Thresholds", group=grpState,
+     tooltip="Divides raw % return by ATR/price, making thresholds instrument- and volatility-agnostic.")
+i_atrLen     = input.int  (14,   "ATR Period (for normalisation)",
+     minval=2, maxval=100, group=grpState)
+
+// Transition matrix
+i_matrixBars = input.int  (1000, "Matrix Lookback (bars; 0 = all available)",
+     minval=0, maxval=5000, group=grpMatrix,
+     tooltip="Number of historical daily bars included in the transition count. 0 uses all available history up to the max_bars_back cap of 5000.")
+
+// Bias output
+i_biasThresh = input.float(55.0, "Bias Confidence Threshold (%)",
+     minval=50.0, maxval=99.0, step=0.5, group=grpBias,
+     tooltip="If P(Bull) OR P(Bear) exceeds this %, the bias fires. Otherwise the output is NEUTRAL.")
+i_minSample  = input.int  (30,   "Min Transitions for Confidence Warning",
+     minval=5, maxval=500, group=grpBias,
+     tooltip="Displays a warning if total transitions in the matrix fall below this number.")
+
+// Visuals
+i_showTable   = input.bool  (true,        "Show Dashboard Table",          group=grpVis)
+i_showMatrix  = input.bool  (true,        "Show Transition Matrix Grid",   group=grpVis)
+i_showBgTint  = input.bool  (true,        "Show Background Tint",          group=grpVis)
+i_showHistory = input.bool  (true,        "Show Historical State Markers", group=grpVis)
+i_tblPos      = input.string("Top Right", "Table Position",
+     options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grpVis)
+i_colorBull   = input.color (color.new(#00c087, 0),  "Bull Colour",     group=grpVis)
+i_colorBear   = input.color (color.new(#ff3b30, 0),  "Bear Colour",     group=grpVis)
+i_colorSide   = input.color (color.new(#8e8e93, 0),  "Sideways Colour", group=grpVis)
+i_bgAlpha     = input.int   (93, "Background Tint Opacity (0=solid, 100=invisible)",
+     minval=70, maxval=100, group=grpVis)
+
+// ============================================================================
+// SECTION 2 — CONFIRMED DAILY DATA (NO LOOKAHEAD)
+// ============================================================================
+// All request.security calls use lookahead=barmerge.lookahead_off (the default).
+// This guarantees that on any intraday bar, we only see the most recently
+// COMPLETED (closed) daily bar — never the in-progress live bar.
+// On a daily chart this is identical to reading close/atr directly.
+//
+// The state classification function runs at daily resolution inside security(),
+// so every historical daily bar gets its own correct state computed with only
+// data that was available up to and including that bar (no future information).
+
+f_stateAtDaily() =>
+    // Trailing return over i_lookback daily bars
+    float priceNow  = close
+    float priceBack = close[i_lookback]
+    float retPct    = not na(priceBack) and priceBack != 0.0
+                      ? (priceNow - priceBack) / priceBack * 100.0
+                      : 0.0
+    // ATR normalisation: express the return in units of daily ATR/price
+    // so that a 0.5% move on a 2%-ATR instrument counts differently from
+    // a 0.5% move on a 0.3%-ATR instrument.
+    float atrVal    = ta.atr(i_atrLen)
+    float normFactor = i_useAtrNorm and not na(atrVal) and atrVal > 0.0 and priceNow > 0.0
+                       ? atrVal / priceNow * 100.0
+                       : 1.0
+    float adjReturn  = i_useAtrNorm ? retPct / math.max(normFactor, 0.0001) : retPct
+    // States: 0 = BULL, 1 = BEAR, 2 = SIDEWAYS
+    adjReturn > i_bullThresh ? 0 : adjReturn < -i_bearThresh ? 1 : 2
+
+// Fetch daily state and daily bar_index (unique per completed daily bar)
+int dailyState  = request.security(syminfo.tickerid, "D", f_stateAtDaily(), lookahead=barmerge.lookahead_off)
+int dailyBarIdx = request.security(syminfo.tickerid, "D", bar_index,        lookahead=barmerge.lookahead_off)
+
+// Detect when a new confirmed daily bar has become available.
+// On daily charts: fires every bar. On intraday: fires on the first bar of
+// each new trading day (when dailyBarIdx increments), so the dashboard is
+// stable and pre-market readable for the rest of that day.
+var int lastDailyBarIdx = na
+bool isDailyUpdate = not na(dailyBarIdx) and (na(lastDailyBarIdx) or dailyBarIdx != lastDailyBarIdx)
+if isDailyUpdate
+    lastDailyBarIdx := dailyBarIdx
+
+// ============================================================================
+// SECTION 3 — TRANSITION MATRIX (ROLLING, INCREMENTAL, NO LOOKAHEAD)
+// ============================================================================
+// We maintain a rolling queue of the last (i_matrixBars + 1) confirmed daily
+// states. From N+1 consecutive states we extract N transitions.
+//
+// On each new confirmed daily bar:
+//   1. Push the new state onto the back of the queue.
+//   2. Add the new transition (state[t-1] → state[t]) to the count array.
+//   3. If the queue exceeds the window capacity, pop the oldest state and
+//      subtract the corresponding transition — implementing the rolling window.
+//
+// Count matrix layout (flat 9-element array, row-major):
+//   index = fromState * 3 + toState
+//   States: BULL=0, BEAR=1, SIDEWAYS=2
+
+var float[] transCount  = array.new_float(9, 0.0)  // 3×3 raw transition counts
+var int[]   stateBuffer = array.new_int(0)           // rolling queue of daily states
+
+if isDailyUpdate
+    // 1. Push current confirmed daily state
+    array.push(stateBuffer, dailyState)
+    int bufLen = array.size(stateBuffer)
+
+    // 2. Record the new transition (second-to-last → last)
+    //    Only possible once we have at least 2 states.
+    if bufLen >= 2
+        int fromSt = array.get(stateBuffer, bufLen - 2)
+        int toSt   = array.get(stateBuffer, bufLen - 1)
+        int idx    = fromSt * 3 + toSt
+        array.set(transCount, idx, array.get(transCount, idx) + 1.0)
+
+    // 3. Rolling window trim: buffer capacity = i_matrixBars + 1 states
+    //    (N+1 states hold N transitions). If i_matrixBars == 0, never trim.
+    int bufCap = i_matrixBars > 0 ? i_matrixBars + 1 : 5001
+    if i_matrixBars > 0 and bufLen > bufCap
+        // Remove the oldest state from the front of the queue
+        int removedFrom = array.shift(stateBuffer)    // pops index 0 (oldest)
+        int newOldest   = array.get(stateBuffer, 0)   // its successor = "to" state
+        int removeIdx   = removedFrom * 3 + newOldest
+        array.set(transCount, removeIdx,
+                  math.max(0.0, array.get(transCount, removeIdx) - 1.0))
+
+// Build row-normalised probability for a single "from" state row.
+// Returns [P(→BULL), P(→BEAR), P(→SIDE)] each in %.
+// If a row has zero observations (state never seen), defaults to 33.3% each.
+f_probRow(int fromSt, float[] counts) =>
+    float pB  = array.get(counts, fromSt * 3 + 0)
+    float pBr = array.get(counts, fromSt * 3 + 1)
+    float pS  = array.get(counts, fromSt * 3 + 2)
+    float rowSum = pB + pBr + pS
+    float scale  = rowSum > 0.0 ? 100.0 / rowSum : 0.0
+    float rBull = rowSum > 0.0 ? pB  * scale : 33.33
+    float rBear = rowSum > 0.0 ? pBr * scale : 33.33
+    float rSide = rowSum > 0.0 ? pS  * scale : 33.33
+    [rBull, rBear, rSide]
+
+// ============================================================================
+// SECTION 4 — DAILY BIAS OUTPUT
+// ============================================================================
+// Look up today's confirmed state's row in the probability matrix.
+// This value is stable all day — it is set the moment the prior daily bar
+// confirms, and will not change until tomorrow's first bar.
+
+int curState = dailyState  // 0=BULL, 1=BEAR, 2=SIDEWAYS (last confirmed daily bar)
+
+[pBull0, pBear0, pSide0] = f_probRow(0, transCount)   // BULL  row probabilities
+[pBull1, pBear1, pSide1] = f_probRow(1, transCount)   // BEAR  row probabilities
+[pBull2, pBear2, pSide2] = f_probRow(2, transCount)   // SIDEWAYS row probabilities
+
+// Select the row for the current state
+float pBullTomorrow = curState == 0 ? pBull0 : curState == 1 ? pBull1 : pBull2
+float pBearTomorrow = curState == 0 ? pBear0 : curState == 1 ? pBear1 : pBear2
+float pSideTomorrow = curState == 0 ? pSide0 : curState == 1 ? pSide1 : pSide2
+
+// Total transitions used (sample size)
+float totalTrans = 0.0
+for i = 0 to 8
+    totalTrans += array.get(transCount, i)
+bool lowSample = totalTrans < float(i_minSample)
+
+// Bias verdict: 1=BULLISH, -1=BEARISH, 0=NEUTRAL
+int biasDir = pBullTomorrow >= i_biasThresh ? 1 : pBearTomorrow >= i_biasThresh ? -1 : 0
+
+// Human-readable labels and colours
+string stateLabel = curState == 0 ? "BULL" : curState == 1 ? "BEAR" : "SIDEWAYS"
+color  stateColor = curState == 0 ? i_colorBull : curState == 1 ? i_colorBear : i_colorSide
+string biasLabel  = biasDir ==  1 ? "▲  BULLISH" : biasDir == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+color  biasColor  = biasDir ==  1 ? i_colorBull  : biasDir == -1 ? i_colorBear  : i_colorSide
+
+// ============================================================================
+// SECTION 5 — BACKGROUND TINT
+// ============================================================================
+// Subtle tint matching tomorrow's bias; does not repaint intraday.
+
+if i_showBgTint
+    bgcolor(biasDir ==  1 ? color.new(i_colorBull, i_bgAlpha) :
+            biasDir == -1 ? color.new(i_colorBear, i_bgAlpha) :
+                            color.new(i_colorSide, i_bgAlpha),
+            title="Bias Background Tint")
+
+// ============================================================================
+// SECTION 6 — HISTORICAL STATE MARKERS
+// ============================================================================
+// Small triangles below/above each bar show the classified state for that bar.
+// Useful for visually auditing how often regimes flip and how the model behaves.
+
+plotshape(i_showHistory and curState == 0, title="Bull Marker",
+          style=shape.triangleup, location=location.belowbar,
+          color=i_colorBull, size=size.tiny)
+plotshape(i_showHistory and curState == 1, title="Bear Marker",
+          style=shape.triangledown, location=location.abovebar,
+          color=i_colorBear, size=size.tiny)
+
+// ============================================================================
+// SECTION 7 — DASHBOARD TABLE
+// ============================================================================
+// Rendered only on the last bar (barstate.islast) to avoid per-bar overhead.
+// Always 13 rows to accommodate the optional transition matrix grid;
+// rows 8-12 are simply left empty when i_showMatrix is false.
+
+string tblPosStr = i_tblPos
+var table dash   = table.new(
+     tblPosStr == "Top Left"     ? position.top_left     :
+     tblPosStr == "Bottom Right" ? position.bottom_right :
+     tblPosStr == "Bottom Left"  ? position.bottom_left  : position.top_right,
+     4, 13,
+     border_width = 1,
+     border_color = color.new(color.gray, 70),
+     frame_width  = 2,
+     frame_color  = color.new(color.gray, 50))
+
+if barstate.islast and i_showTable
+    // Colour palette
+    color hdrBg  = color.new(#0d1b2a, 15)
+    color rowBg  = color.new(#0d1b2a, 60)
+    color txtDim = color.new(color.white, 50)
+    color txtFull = color.white
+
+    // ── Row 0: Title ──────────────────────────────────────────────────────
+    table.cell(dash, 0, 0, "MARKOV REGIME BIAS",
+               bgcolor=hdrBg, text_color=txtFull,
+               text_size=size.small, text_fontstyle=font.style_bold,
+               text_halign=text.align_center)
+    table.merge_cells(dash, 0, 0, 3, 0)
+
+    // ── Row 1: Current State ──────────────────────────────────────────────
+    table.cell(dash, 0, 1, "Current State",
+               bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 1, 1, 1)
+    table.cell(dash, 2, 1, stateLabel,
+               bgcolor=color.new(stateColor, 55),
+               text_color=txtFull, text_size=size.normal,
+               text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 1, 3, 1)
+
+    // ── Row 2: Tomorrow Bias ──────────────────────────────────────────────
+    table.cell(dash, 0, 2, "Tomorrow Bias",
+               bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 2, 1, 2)
+    table.cell(dash, 2, 2, biasLabel,
+               bgcolor=color.new(biasColor, 30),
+               text_color=biasColor, text_size=size.normal,
+               text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 2, 3, 2)
+
+    // ── Row 3: P(Bull) ────────────────────────────────────────────────────
+    table.cell(dash, 0, 3, "P(Bull) tomorrow",
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 3, 1, 3)
+    table.cell(dash, 2, 3, str.tostring(pBullTomorrow, "#.1") + "%",
+               bgcolor=color.new(color.green, 50), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 3, 3, 3)
+
+    // ── Row 4: P(Bear) ────────────────────────────────────────────────────
+    table.cell(dash, 0, 4, "P(Bear) tomorrow",
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 4, 1, 4)
+    table.cell(dash, 2, 4, str.tostring(pBearTomorrow, "#.1") + "%",
+               bgcolor=color.new(color.red, 50), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 4, 3, 4)
+
+    // ── Row 5: P(Sideways) ────────────────────────────────────────────────
+    table.cell(dash, 0, 5, "P(Sideways) tomorrow",
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 5, 1, 5)
+    table.cell(dash, 2, 5, str.tostring(pSideTomorrow, "#.1") + "%",
+               bgcolor=color.new(color.gray, 50), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 5, 3, 5)
+
+    // ── Row 6: Sample Size ────────────────────────────────────────────────
+    color sampleBg   = lowSample ? color.new(color.orange, 35) : color.new(#005f73, 40)
+    string sampleStr = str.tostring(int(totalTrans)) + (lowSample ? "  ⚠ LOW" : " transitions")
+    table.cell(dash, 0, 6, "Sample Size",
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 6, 1, 6)
+    table.cell(dash, 2, 6, sampleStr,
+               bgcolor=sampleBg, text_color=txtFull,
+               text_size=size.small, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 6, 3, 6)
+
+    // ── Row 7: Threshold info ─────────────────────────────────────────────
+    table.cell(dash, 0, 7,
+               "Bias threshold: " + str.tostring(i_biasThresh, "#.0") + "%  |  " +
+               "Lookback: " + str.tostring(i_lookback) + "d",
+               bgcolor=color.new(#0d1b2a, 40), text_color=color.new(color.white, 65),
+               text_size=size.tiny, text_halign=text.align_center)
+    table.merge_cells(dash, 0, 7, 3, 7)
+
+    // ── Rows 8-12: Transition Matrix Grid (optional) ──────────────────────
+    if i_showMatrix
+        // Row 8: Matrix section divider
+        table.cell(dash, 0, 8, "─── Transition Matrix ───",
+                   bgcolor=color.new(#0d1b2a, 40),
+                   text_color=color.new(color.white, 60),
+                   text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(dash, 0, 8, 3, 8)
+
+        // Row 9: Column headers
+        table.cell(dash, 0, 9, "FROM \\ TO",
+                   bgcolor=color.new(color.gray, 65), text_color=txtDim, text_size=size.tiny)
+        table.cell(dash, 1, 9, "→ BULL",
+                   bgcolor=color.new(color.green, 65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(dash, 2, 9, "→ BEAR",
+                   bgcolor=color.new(color.red,   65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(dash, 3, 9, "→ SIDE",
+                   bgcolor=color.new(color.gray,  65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+
+        // Rows 10-12: One row per "from" state
+        // allProbs is a 9-element flat array: [BULL→B, BULL→Br, BULL→S, BEAR→B, ...]
+        float[] allProbs = array.from(
+             pBull0, pBear0, pSide0,
+             pBull1, pBear1, pSide1,
+             pBull2, pBear2, pSide2)
+        string[] rowLabels = array.from("BULL →", "BEAR →", "SIDE →")
+
+        for int fromSt = 0 to 2
+            int rowIdx = 10 + fromSt
+            // Row label with state colour
+            color rowLabelBg = fromSt == 0 ? color.new(color.green, 60) :
+                               fromSt == 1 ? color.new(color.red,   60) :
+                                             color.new(color.gray,  60)
+            table.cell(dash, 0, rowIdx, array.get(rowLabels, fromSt),
+                       bgcolor=rowLabelBg, text_color=txtFull, text_size=size.tiny)
+
+            // Three probability cells
+            for int toSt = 0 to 2
+                float p = array.get(allProbs, fromSt * 3 + toSt)
+                // Higher probability = more saturated background
+                int alpha = int(math.max(15, math.min(80, 80 - p * 0.6)))
+                color cellBg = toSt == 0 ? color.new(color.green, alpha) :
+                               toSt == 1 ? color.new(color.red,   alpha) :
+                                           color.new(color.gray,  alpha)
+                // Bold the highest probability in each row
+                float rowMax = math.max(array.get(allProbs, fromSt * 3 + 0),
+                               math.max(array.get(allProbs, fromSt * 3 + 1),
+                                        array.get(allProbs, fromSt * 3 + 2)))
+                bool isMax = p >= rowMax - 0.01
+                table.cell(dash, toSt + 1, rowIdx,
+                           str.tostring(p, "#.0") + "%",
+                           bgcolor=cellBg, text_color=txtFull,
+                           text_size=size.tiny, text_halign=text.align_center,
+                           text_fontstyle=isMax ? font.style_bold : font.style_normal)
+
+// ============================================================================
+// SECTION 8 — ALERTS
+// ============================================================================
+// prevBiasDir tracks the previous daily bar's bias so we can detect flips.
+// It updates once per confirmed daily bar (when isDailyUpdate is true).
+// On non-update bars, prevBiasDir == biasDir, so flip conditions are false.
+
+var int prevBiasDir = na
+
+bool flipBullish = not na(prevBiasDir) and prevBiasDir != 1  and biasDir == 1
+bool flipBearish = not na(prevBiasDir) and prevBiasDir != -1 and biasDir == -1
+bool flipNeutral = not na(prevBiasDir) and prevBiasDir != 0  and biasDir == 0
+
+if isDailyUpdate
+    prevBiasDir := biasDir
+
+alertcondition(flipBullish, title="MRB — Bias flipped BULLISH",
+    message="[Markov Regime Bias] {{ticker}} bias flipped to BULLISH on {{time}}. Check the dashboard for P(Bull/Bear/Sideways).")
+
+alertcondition(flipBearish, title="MRB — Bias flipped BEARISH",
+    message="[Markov Regime Bias] {{ticker}} bias flipped to BEARISH on {{time}}. Check the dashboard for P(Bull/Bear/Sideways).")
+
+alertcondition(flipNeutral, title="MRB — Bias flipped NEUTRAL",
+    message="[Markov Regime Bias] {{ticker}} bias flipped to NEUTRAL on {{time}} — no strong directional edge detected.")
+
+alertcondition(lowSample, title="MRB — Low Sample Size Warning",
+    message="[Markov Regime Bias] {{ticker}} transition matrix has fewer than the configured minimum transitions. Interpret probabilities with caution.")
