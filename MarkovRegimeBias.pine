@@ -64,8 +64,8 @@ var string grpVis    = "Visuals"
 
 // Resolution
 i_resolution = input.string("Daily", "Regime Resolution",
-     options=["Daily", "Weekly"], group=grpRes,
-     tooltip="Daily: regime computed from closed daily bars (use on any timeframe). Weekly: regime computed from closed weekly bars, best used on the daily chart. Dashboard header shows [D] or [W], and labels update accordingly.")
+     options=["Daily", "Weekly", "Monthly"], group=grpRes,
+     tooltip="Daily: regime from closed daily bars (any chart). Weekly: regime from closed weekly bars, best viewed on the daily chart — shows [W]. Monthly: regime from closed monthly bars, best viewed on the weekly or daily chart — shows [M]. All labels update accordingly.")
 
 // State classification
 i_lookback   = input.int  (5,    "State Lookback (bars)",
@@ -127,7 +127,7 @@ i_markerSize   = input.string("Normal",    "Marker Size",
 // resolution, so every historical bar gets its own state computed with only data
 // available up to and including that bar (no future information).
 
-string _res = i_resolution == "Weekly" ? "W" : "D"
+string _res = i_resolution == "Weekly" ? "W" : i_resolution == "Monthly" ? "M" : "D"
 
 f_stateAtRes() =>
     float priceNow  = close
@@ -330,14 +330,19 @@ plotshape(i_overnightMode and isResUpdate and biasDir ==  0, title="Overnight Cl
 // tomorrow's bias (overnight mode row — empty when mode is off),
 // sample size, threshold, 5 matrix rows.
 
-bool   _isWeekly     = i_resolution == "Weekly"
-string _hdrLabel     = "MARKOV REGIME BIAS  [" + (_isWeekly ? "W" : "D") + "]"
-string _sessionLbl   = _isWeekly ? "This Week's Bias"  : "Today's Session Bias"
-string _nextLbl      = _isWeekly ? "Next Week's Bias"  : "Tomorrow's Bias"
-string _pBullLbl     = _isWeekly ? "P(Bull) next week" : "P(Bull) tomorrow"
-string _pBearLbl     = _isWeekly ? "P(Bear) next week" : "P(Bear) tomorrow"
-string _pSideLbl     = _isWeekly ? "P(Side) next week" : "P(Side) tomorrow"
-string _lookbackUnit = _isWeekly ? "w" : "d"
+string _resTag       = i_resolution == "Weekly"  ? "W" : i_resolution == "Monthly" ? "M" : "D"
+string _hdrLabel     = "MARKOV REGIME BIAS  [" + _resTag + "]"
+string _sessionLbl   = i_resolution == "Weekly"  ? "This Week's Bias"   :
+                       i_resolution == "Monthly" ? "This Month's Bias"  : "Today's Session Bias"
+string _nextLbl      = i_resolution == "Weekly"  ? "Next Week's Bias"   :
+                       i_resolution == "Monthly" ? "Next Month's Bias"  : "Tomorrow's Bias"
+string _pBullLbl     = i_resolution == "Weekly"  ? "P(Bull) next week"  :
+                       i_resolution == "Monthly" ? "P(Bull) next month" : "P(Bull) tomorrow"
+string _pBearLbl     = i_resolution == "Weekly"  ? "P(Bear) next week"  :
+                       i_resolution == "Monthly" ? "P(Bear) next month" : "P(Bear) tomorrow"
+string _pSideLbl     = i_resolution == "Weekly"  ? "P(Side) next week"  :
+                       i_resolution == "Monthly" ? "P(Side) next month" : "P(Side) tomorrow"
+string _lookbackUnit = i_resolution == "Weekly"  ? "w" : i_resolution == "Monthly" ? "m" : "d"
 
 string tblPosStr = i_tblPos
 var table dash   = table.new(
