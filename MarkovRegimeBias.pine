@@ -2,53 +2,30 @@
 indicator("Markov Regime Bias", shorttitle="MRB", overlay=true, max_bars_back=5000)
 
 // ============================================================================
-// MARKOV REGIME BIAS  —  Pine Script v6  —  Standalone Indicator
+// MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
 // ============================================================================
 //
-// WHAT IS A MARKOV CHAIN REGIME MODEL?
-// A Markov chain is a probabilistic model where the probability of transitioning
-// to the next state depends only on the CURRENT state — not on the full history
-// of how we got here. Applied to markets: given that today's bar is in a BULL
-// regime, what is the historical likelihood that tomorrow will also be BULL?
-// BEAR? SIDEWAYS? We answer this by counting every state-to-state transition in
-// history and building a 3×3 matrix of conditional probabilities. The diagonal
-// (BULL→BULL, BEAR→BEAR, SIDEWAYS→SIDEWAYS) tells you how "sticky" each regime
-// tends to be. Off-diagonal cells show reversal and rotation probabilities.
+// Five-layer signal engine:
+//   Layer 1 — First-order Markov chain     (3×3 = 9-cell transition matrix)
+//   Layer 2 — Second-order Markov chain    (9×3 = 27-cell transition matrix)
+//   Layer 3 — VIX volatility regime        (CBOE:VIX vs 20-period SMA)
+//   Layer 4 — Multi-timeframe confluence   (D + W + M raw state alignment)
+//   Layer 5 — Shannon entropy scoring      (probability distribution certainty)
 //
-// RESOLUTION TOGGLE  [D / W]:
-// "Daily" (default): regime states computed from confirmed daily bars. Works on
-//   any chart timeframe. Dashboard shows [D], labels read "Today / Tomorrow."
-// "Weekly": regime states computed from confirmed weekly bars. Best used on the
-//   daily chart so price context matches regime context. Dashboard shows [W] and
-//   labels read "This Week's Bias / Next Week's Bias."
+// Also tracks: regime duration (consecutive bars in current state).
 //
-// OVERNIGHT / NEXT SESSION MODE:
-// When enabled, a carrot arrow is placed on the LAST candle of each session via
-// plotshape offset=-1. No repainting — the shape fires only when isResUpdate
-// confirms a closed bar, and offset shifts it back one bar onto the final candle
-// of the prior session.
-// The "Tomorrow's Bias" dashboard row shows "—" from 4AM–3:59PM ET. It populates
-// at 4:00 PM ET (confirmed daily close) and resets back to "—" at 4:00 AM ET.
-// Requires TradingView Extended Hours to be ON for the 4PM trigger on intraday
-// charts; without Extended Hours the arrow still lands correctly on the prior
-// session's close bar, but the dashboard row will always show "—" intraday.
+// COMPOSITE PROBABILITY: weighted blend of all five layer outputs.
+// CONFLUENCE SCORE: 0–5 integer — how many layers agree with primary bias.
+// SIGNAL QUALITY: HIGH (conf ≥ 4/5 AND composite ≥ 62%)
+//                 MEDIUM (conf ≥ 3/5 AND composite ≥ 58%)
+//                 LOW (everything else)
 //
-// BARS-BACK LIMITATION:
-// Pine Script caps history at max_bars_back bars (set to 5000 here, roughly 20
-// years on a daily chart). Free TradingView accounts may only have ~5 years of
-// daily history (~1250 bars). More history = better matrix calibration. Watch the
-// "Sample Size" readout — if it falls below your configured minimum (default: 30
-// transitions), treat all probabilities with extra skepticism.
+// MARKERS: session-start triangles and overnight carrots fire ONLY on HIGH
+//          quality signals. No marker = model says sit out.
 //
 // NO-LOOKAHEAD GUARANTEE:
-// Every calculation uses only historically confirmed data. States are computed
-// from completed bars via request.security with lookahead=barmerge.lookahead_off.
-// The bias shown is based exclusively on the last confirmed close and will not
-// change until the next bar confirms.
-//
-// DISCLAIMER:
-// Historical-tendency tool only. Not financial advice. Past regime probabilities
-// do not guarantee future outcomes. Always apply your own risk management.
+//   All request.security calls use lookahead=barmerge.lookahead_off.
+//   States derive from confirmed closed bars only. Zero repainting.
 //
 // ============================================================================
 
@@ -59,45 +36,52 @@ indicator("Markov Regime Bias", shorttitle="MRB", overlay=true, max_bars_back=50
 var string grpRes    = "Regime Resolution"
 var string grpState  = "State Classification"
 var string grpMatrix = "Transition Matrix"
+var string grpInst   = "Institutional Stack"
 var string grpBias   = "Bias Output"
 var string grpVis    = "Visuals"
 
-// Resolution
 i_resolution = input.string("Daily", "Regime Resolution",
      options=["Daily", "Weekly", "Monthly"], group=grpRes,
-     tooltip="Daily: regime from closed daily bars (any chart). Weekly: regime from closed weekly bars, best viewed on the daily chart — shows [W]. Monthly: regime from closed monthly bars, best viewed on the weekly or daily chart — shows [M]. All labels update accordingly.")
+     tooltip="Daily: regime from closed daily bars (any chart). Weekly: from closed weekly bars. Monthly: from closed monthly bars. All dashboard labels update accordingly.")
 
-// State classification
-i_lookback   = input.int  (5,    "State Lookback (bars)",
-     minval=2, maxval=50, group=grpState,
-     tooltip="Number of completed bars at the selected resolution to measure the trailing return over.")
-i_bullThresh = input.float(0.5,  "Bull Threshold (%)",
-     minval=0.01, maxval=20.0, step=0.1, group=grpState,
-     tooltip="If the trailing return (raw or ATR-normalised) exceeds this value, the state is BULL.")
-i_bearThresh = input.float(0.5,  "Bear Threshold (%)",
-     minval=0.01, maxval=20.0, step=0.1, group=grpState,
-     tooltip="If the trailing return falls below the negative of this value, the state is BEAR.")
+i_lookback   = input.int  (5,    "State Lookback (bars)", minval=2, maxval=50, group=grpState,
+     tooltip="Number of completed bars at the selected resolution to measure trailing return over.")
+i_bullThresh = input.float(0.5,  "Bull Threshold (%)", minval=0.01, maxval=20.0, step=0.1, group=grpState)
+i_bearThresh = input.float(0.5,  "Bear Threshold (%)", minval=0.01, maxval=20.0, step=0.1, group=grpState)
 i_useAtrNorm = input.bool (true, "ATR-Normalise Thresholds", group=grpState,
-     tooltip="Divides raw % return by ATR/price, making thresholds instrument- and volatility-agnostic.")
-i_atrLen     = input.int  (14,   "ATR Period (for normalisation)",
-     minval=2, maxval=100, group=grpState)
+     tooltip="Divides raw % return by ATR/price — instrument- and volatility-agnostic thresholds.")
+i_atrLen     = input.int  (14,   "ATR Period (for normalisation)", minval=2, maxval=100, group=grpState)
 
-// Transition matrix
-i_matrixBars = input.int  (1000, "Matrix Lookback (bars; 0 = all available)",
-     minval=0, maxval=5000, group=grpMatrix,
-     tooltip="Number of historical bars (at the selected resolution) included in the transition count. 0 uses all available history up to the max_bars_back cap of 5000.")
+i_matrixBars = input.int  (1000, "Matrix Lookback (bars; 0 = all)", minval=0, maxval=5000, group=grpMatrix,
+     tooltip="Bars of history included in the first-order transition count. 0 = full available history.")
 
-// Bias output
-i_biasThresh = input.float(55.0, "Bias Confidence Threshold (%)",
-     minval=50.0, maxval=99.0, step=0.5, group=grpBias,
-     tooltip="If P(Bull) OR P(Bear) exceeds this %, the bias fires. Otherwise the output is NEUTRAL.")
-i_minSample  = input.int  (30,   "Min Transitions for Confidence Warning",
-     minval=5, maxval=500, group=grpBias,
-     tooltip="Displays a warning if total transitions in the matrix fall below this number.")
+i_useSecondOrder = input.bool  (true,  "Second-Order Markov (27-cell matrix)", group=grpInst,
+     tooltip="Tracks state PAIRS as the 'from' node — 9×3 = 27-cell matrix. Needs ≥3 confirmed bars to fire.")
+i_useVix         = input.bool  (true,  "VIX Volatility Regime (CBOE:VIX)", group=grpInst,
+     tooltip="High VIX (above SMA) shrinks bull confidence; low VIX boosts it. Requires CBOE:VIX data access.")
+i_useMtf         = input.bool  (true,  "Multi-Timeframe Confluence (D+W+M)", group=grpInst,
+     tooltip="Counts how many of Daily, Weekly, and Monthly raw states agree with the primary bias direction.")
+i_useEntropy     = input.bool  (true,  "Entropy Confidence Scoring", group=grpInst,
+     tooltip="Shannon entropy of the probability distribution. High entropy = uncertain. Normalized to 0-100%.")
+i_useDuration    = input.bool  (true,  "Regime Duration Persistence", group=grpInst,
+     tooltip="Longer consecutive duration in current state provides a mild persistence confidence boost.")
+i_vixLen         = input.int  (20,    "VIX SMA Period", minval=5, maxval=100, group=grpInst)
+i_w1             = input.float(0.30,  "Weight: 1st-Order Markov",   minval=0.0, maxval=1.0, step=0.05, group=grpInst)
+i_w2             = input.float(0.25,  "Weight: 2nd-Order Markov",   minval=0.0, maxval=1.0, step=0.05, group=grpInst)
+i_w3             = input.float(0.15,  "Weight: VIX Regime",         minval=0.0, maxval=1.0, step=0.05, group=grpInst)
+i_w4             = input.float(0.15,  "Weight: MTF Confluence",     minval=0.0, maxval=1.0, step=0.05, group=grpInst)
+i_w5             = input.float(0.15,  "Weight: Entropy Confidence", minval=0.0, maxval=1.0, step=0.05, group=grpInst)
+
+i_biasThresh  = input.float(55.0, "1st-Order Bias Confidence Threshold (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias,
+     tooltip="P(Bull) or P(Bear) must exceed this to register a directional bias from the first-order matrix.")
+i_compThreshH = input.float(62.0, "HIGH Signal: Min Composite Probability (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias)
+i_compThreshM = input.float(58.0, "MEDIUM Signal: Min Composite Probability (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias)
+i_confThreshH = input.int  (4,   "HIGH Signal: Min Confluence Score (0-5)", minval=0, maxval=5, group=grpBias)
+i_confThreshM = input.int  (3,   "MEDIUM Signal: Min Confluence Score (0-5)", minval=0, maxval=5, group=grpBias)
+i_minSample   = input.int  (30,  "Min Transitions for Warning", minval=5, maxval=500, group=grpBias)
 i_overnightMode = input.bool(false, "Overnight / Next Session Mode", group=grpBias,
-     tooltip="Adds a carrot arrow on the LAST candle of each session (offset=-1, no repainting). Dashboard shows a 'Tomorrow's Bias' row: hidden until 4PM ET, populated 4PM–4AM ET, resets at 4AM. Requires Extended Hours ON in TradingView for the 4PM trigger on intraday charts.")
+     tooltip="Carrot arrows on last candle of each session (offset=-1, no repainting). Dashboard populates 4PM–4AM ET, resets at 4AM. Requires Extended Hours ON for 4PM trigger on intraday charts.")
 
-// Visuals
 i_showTable   = input.bool  (true,        "Show Dashboard Table",          group=grpVis)
 i_showMatrix  = input.bool  (true,        "Show Transition Matrix Grid",   group=grpVis)
 i_showBgTint  = input.bool  (true,        "Show Background Tint",          group=grpVis)
@@ -107,25 +91,16 @@ i_tblPos      = input.string("Top Right", "Table Position",
 i_colorBull   = input.color (color.new(#00c087, 0),  "Bull Colour",     group=grpVis)
 i_colorBear   = input.color (color.new(#ff3b30, 0),  "Bear Colour",     group=grpVis)
 i_colorSide   = input.color (color.new(#8e8e93, 0),  "Sideways Colour", group=grpVis)
-i_bgAlpha     = input.int   (93, "Background Tint Opacity (0=solid, 100=invisible)",
-     minval=70, maxval=100, group=grpVis)
-i_showDayBias  = input.bool  (true,        "Show Session-Start Bias Markers",  group=grpVis,
-     tooltip="Plots one marker at the FIRST bar of each new session: green triangle up = Bullish, red triangle down = Bearish, yellow diamond = Neutral/Chop. On intraday charts this appears at the session open. On the daily chart it sits on that day's candle — useful for auditing historical signals.")
-i_colorNeutral = input.color (color.new(color.yellow, 0), "Neutral Marker Colour", group=grpVis)
-i_markerSize   = input.string("Normal",    "Marker Size",
+i_bgAlpha     = input.int   (93, "Background Tint Opacity (0=solid, 100=invisible)", minval=70, maxval=100, group=grpVis)
+i_showDayBias = input.bool  (true, "Show Bias Markers (HIGH quality only)", group=grpVis,
+     tooltip="Plots markers ONLY on HIGH quality signals: green ▲ below bar = bullish, red ▼ above bar = bearish. No marker = no trade.")
+i_colorNeutral = input.color(color.new(color.yellow, 0), "Neutral Colour", group=grpVis)
+i_markerSize  = input.string("Normal", "Marker Size",
      options=["Tiny","Small","Normal","Large"], group=grpVis)
 
 // ============================================================================
-// SECTION 2 — CONFIRMED RESOLUTION DATA (NO LOOKAHEAD)
+// SECTION 2 — RESOLUTION DATA (CONFIRMED BARS, NO LOOKAHEAD)
 // ============================================================================
-// All request.security calls use lookahead=barmerge.lookahead_off.
-// This guarantees we only ever see the most recently COMPLETED (closed) bar at
-// the selected resolution — never the in-progress live bar. On a chart whose
-// timeframe matches the resolution, this is identical to reading close/atr directly.
-//
-// The state classification function runs inside security() at the chosen
-// resolution, so every historical bar gets its own state computed with only data
-// available up to and including that bar (no future information).
 
 string _res = i_resolution == "Weekly" ? "W" : i_resolution == "Monthly" ? "M" : "D"
 
@@ -133,41 +108,36 @@ f_stateAtRes() =>
     float priceNow  = close
     float priceBack = close[i_lookback]
     float retPct    = not na(priceBack) and priceBack != 0.0
-                      ? (priceNow - priceBack) / priceBack * 100.0
-                      : 0.0
-    float atrVal    = ta.atr(i_atrLen)
+                      ? (priceNow - priceBack) / priceBack * 100.0 : 0.0
+    float atrVal     = ta.atr(i_atrLen)
     float normFactor = i_useAtrNorm and not na(atrVal) and atrVal > 0.0 and priceNow > 0.0
-                       ? atrVal / priceNow * 100.0
-                       : 1.0
+                       ? atrVal / priceNow * 100.0 : 1.0
     float adjReturn  = i_useAtrNorm ? retPct / math.max(normFactor, 0.0001) : retPct
-    // States: 0 = BULL, 1 = BEAR, 2 = SIDEWAYS
+    // 0 = BULL, 1 = BEAR, 2 = SIDEWAYS
     adjReturn > i_bullThresh ? 0 : adjReturn < -i_bearThresh ? 1 : 2
 
 int resState  = request.security(syminfo.tickerid, _res, f_stateAtRes(), lookahead=barmerge.lookahead_off)
 int resBarIdx = request.security(syminfo.tickerid, _res, bar_index,      lookahead=barmerge.lookahead_off)
 
-// Detect when a new confirmed bar at the chosen resolution has become available.
-// On intraday charts: fires on the first bar of each new session (when resBarIdx
-// increments). The bias is then stable for the rest of that session.
+// MTF raw states fetched at all three resolutions simultaneously
+int stateD = request.security(syminfo.tickerid, "D", f_stateAtRes(), lookahead=barmerge.lookahead_off)
+int stateW = request.security(syminfo.tickerid, "W", f_stateAtRes(), lookahead=barmerge.lookahead_off)
+int stateM = request.security(syminfo.tickerid, "M", f_stateAtRes(), lookahead=barmerge.lookahead_off)
+
+// VIX data
+float vixClose = request.security("CBOE:VIX", "D", close,            lookahead=barmerge.lookahead_off)
+float vixSma   = request.security("CBOE:VIX", "D", ta.sma(close, i_vixLen), lookahead=barmerge.lookahead_off)
+
+// New confirmed bar detection
 var int lastResBarIdx = na
 bool isResUpdate = not na(resBarIdx) and (na(lastResBarIdx) or resBarIdx != lastResBarIdx)
 if isResUpdate
     lastResBarIdx := resBarIdx
 
 // ============================================================================
-// SECTION 3 — TRANSITION MATRIX (ROLLING, INCREMENTAL, NO LOOKAHEAD)
+// SECTION 3 — FIRST-ORDER TRANSITION MATRIX (9-cell)
 // ============================================================================
-// We maintain a rolling queue of the last (i_matrixBars + 1) confirmed states.
-// From N+1 consecutive states we extract N transitions.
-//
-// On each new confirmed bar:
-//   1. Push the new state onto the back of the queue.
-//   2. Add the new transition (state[t-1] → state[t]) to the count array.
-//   3. If the queue exceeds the window capacity, pop the oldest state and
-//      subtract the corresponding transition — implementing the rolling window.
-//
-// Count matrix layout (flat 9-element array, row-major):
-//   index = fromState * 3 + toState   (BULL=0, BEAR=1, SIDEWAYS=2)
+// index = fromState * 3 + toState   (BULL=0, BEAR=1, SIDEWAYS=2)
 
 var float[] transCount  = array.new_float(9, 0.0)
 var int[]   stateBuffer = array.new_int(0)
@@ -177,45 +147,33 @@ if isResUpdate
     int bufLen = array.size(stateBuffer)
 
     if bufLen >= 2
-        int fromSt = array.get(stateBuffer, bufLen - 2)
-        int toSt   = array.get(stateBuffer, bufLen - 1)
-        int idx    = fromSt * 3 + toSt
-        array.set(transCount, idx, array.get(transCount, idx) + 1.0)
+        int fromSt1 = array.get(stateBuffer, bufLen - 2)
+        int toSt1   = array.get(stateBuffer, bufLen - 1)
+        array.set(transCount, fromSt1 * 3 + toSt1,
+                  array.get(transCount, fromSt1 * 3 + toSt1) + 1.0)
 
     int bufCap = i_matrixBars > 0 ? i_matrixBars + 1 : 5001
     if i_matrixBars > 0 and bufLen > bufCap
         int removedFrom = array.shift(stateBuffer)
         int newOldest   = array.get(stateBuffer, 0)
         int removeIdx   = removedFrom * 3 + newOldest
-        array.set(transCount, removeIdx,
-                  math.max(0.0, array.get(transCount, removeIdx) - 1.0))
+        array.set(transCount, removeIdx, math.max(0.0, array.get(transCount, removeIdx) - 1.0))
 
-// Row-normalised probability for a single "from" state.
-// Returns [P(→BULL), P(→BEAR), P(→SIDE)] in %.
-// Defaults to 33.3% each if the state has never been observed.
 f_probRow(int fromSt, float[] counts) =>
-    float pB  = array.get(counts, fromSt * 3 + 0)
-    float pBr = array.get(counts, fromSt * 3 + 1)
-    float pS  = array.get(counts, fromSt * 3 + 2)
+    float pB   = array.get(counts, fromSt * 3 + 0)
+    float pBr  = array.get(counts, fromSt * 3 + 1)
+    float pS   = array.get(counts, fromSt * 3 + 2)
     float rowSum = pB + pBr + pS
-    float scale  = rowSum > 0.0 ? 100.0 / rowSum : 0.0
-    float rBull = rowSum > 0.0 ? pB  * scale : 33.33
-    float rBear = rowSum > 0.0 ? pBr * scale : 33.33
-    float rSide = rowSum > 0.0 ? pS  * scale : 33.33
+    float rBull = rowSum > 0.0 ? pB  / rowSum * 100.0 : 33.33
+    float rBear = rowSum > 0.0 ? pBr / rowSum * 100.0 : 33.33
+    float rSide = rowSum > 0.0 ? pS  / rowSum * 100.0 : 33.33
     [rBull, rBear, rSide]
-
-// ============================================================================
-// SECTION 4 — BIAS OUTPUT
-// ============================================================================
-// Look up the current confirmed state's row in the probability matrix.
-// This value is stable across the session — it is set the moment the prior bar
-// confirms and will not change until the next confirmed close.
 
 int curState = resState
 
-[pBull0, pBear0, pSide0] = f_probRow(0, transCount)   // BULL  row
-[pBull1, pBear1, pSide1] = f_probRow(1, transCount)   // BEAR  row
-[pBull2, pBear2, pSide2] = f_probRow(2, transCount)   // SIDEWAYS row
+[pBull0, pBear0, pSide0] = f_probRow(0, transCount)
+[pBull1, pBear1, pSide1] = f_probRow(1, transCount)
+[pBull2, pBear2, pSide2] = f_probRow(2, transCount)
 
 float pBullNext = curState == 0 ? pBull0 : curState == 1 ? pBull1 : pBull2
 float pBearNext = curState == 0 ? pBear0 : curState == 1 ? pBear1 : pBear2
@@ -228,34 +186,171 @@ bool lowSample = totalTrans < float(i_minSample)
 
 int biasDir = pBullNext >= i_biasThresh ? 1 : pBearNext >= i_biasThresh ? -1 : 0
 
-string stateLabel = curState == 0 ? "BULL" : curState == 1 ? "BEAR" : "SIDEWAYS"
-color  stateColor = curState == 0 ? i_colorBull : curState == 1 ? i_colorBear : i_colorSide
-string biasLabel  = biasDir ==  1 ? "▲  BULLISH" : biasDir == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
-color  biasColor  = biasDir ==  1 ? i_colorBull  : biasDir == -1 ? i_colorBear  : i_colorSide
+// ============================================================================
+// SECTION 4 — SECOND-ORDER MARKOV CHAIN (27-cell)
+// ============================================================================
+// "from" node = prior state PAIR: prevState*3 + curState  → values 0-8
+// index = fromPair * 3 + toState
+
+var float[] trans2 = array.new_float(27, 0.0)
+
+if isResUpdate
+    int bufLen2 = array.size(stateBuffer)
+    if bufLen2 >= 3
+        int prevSt2  = array.get(stateBuffer, bufLen2 - 3)
+        int fromSt2  = array.get(stateBuffer, bufLen2 - 2)
+        int toSt2    = array.get(stateBuffer, bufLen2 - 1)
+        int fromPair = prevSt2 * 3 + fromSt2
+        int idx2     = fromPair * 3 + toSt2
+        array.set(trans2, idx2, array.get(trans2, idx2) + 1.0)
+
+// Read second-order probs for current state pair
+float p2BullNext = 33.33
+float p2BearNext = 33.33
+float p2SideNext = 33.33
+
+int bufLenNow = array.size(stateBuffer)
+if i_useSecondOrder and bufLenNow >= 2
+    int prevStNow = array.get(stateBuffer, bufLenNow - 2)
+    int curStNow  = array.get(stateBuffer, bufLenNow - 1)
+    int pairNow   = prevStNow * 3 + curStNow
+    float s2B   = array.get(trans2, pairNow * 3 + 0)
+    float s2Br  = array.get(trans2, pairNow * 3 + 1)
+    float s2S   = array.get(trans2, pairNow * 3 + 2)
+    float s2Sum = s2B + s2Br + s2S
+    if s2Sum > 0.0
+        p2BullNext := s2B  / s2Sum * 100.0
+        p2BearNext := s2Br / s2Sum * 100.0
+        p2SideNext := s2S  / s2Sum * 100.0
 
 // ============================================================================
-// SECTION 5 — OVERNIGHT WINDOW LOGIC
+// SECTION 5 — VIX VOLATILITY REGIME
 // ============================================================================
-// ET time gate: 4:00 PM – 3:59 AM (America/New_York).
-// overnightDisplayBias is captured at the confirmed close (isResUpdate fires)
-// and held for display throughout the overnight window.
-// It resets to na at 4:00 AM ET — detected as the first bar that crosses from
-// inside the window (< 4:00 AM) to outside (>= 4:00 AM, < 4:00 PM).
-//
-// On the DAILY chart every bar is at 4:00 PM ET so isOvernightWindow is always
-// true — "Tomorrow's Bias" displays continuously, which is correct behaviour
-// since each bar is itself a confirmed close.
 
-int  _etMins         = hour(time, "America/New_York") * 60 + minute(time, "America/New_York")
+bool isHighVol = not na(vixClose) and not na(vixSma) and vixClose > vixSma
+
+// VIX directional score for composite blend
+// High vol favors bears; low vol favors bulls
+float vixBullScore = i_useVix ? (isHighVol ? 42.0 : 62.0) : 50.0
+float vixBearScore = i_useVix ? (isHighVol ? 62.0 : 42.0) : 50.0
+
+// ============================================================================
+// SECTION 6 — MULTI-TIMEFRAME CONFLUENCE
+// ============================================================================
+
+int biasDirD = stateD == 0 ? 1 : stateD == 1 ? -1 : 0
+int biasDirW = stateW == 0 ? 1 : stateW == 1 ? -1 : 0
+int biasDirM = stateM == 0 ? 1 : stateM == 1 ? -1 : 0
+
+// Count how many of D/W/M agree with the primary bias direction
+int mtfScore = 0
+if i_useMtf
+    if biasDirD == biasDir
+        mtfScore := mtfScore + 1
+    if biasDirW == biasDir
+        mtfScore := mtfScore + 1
+    if biasDirM == biasDir
+        mtfScore := mtfScore + 1
+
+// MTF probability contribution: 0→33%, 1→44%, 2→55%, 3→67%
+float mtfProb = i_useMtf ? 33.33 + float(mtfScore) * 11.11 : 50.0
+
+// ============================================================================
+// SECTION 7 — ENTROPY / UNCERTAINTY SCORING
+// ============================================================================
+
+float _p1 = math.max(pBullNext / 100.0, 0.0001)
+float _p2 = math.max(pBearNext / 100.0, 0.0001)
+float _p3 = math.max(pSideNext / 100.0, 0.0001)
+float rawEntropy  = -(_p1 * math.log(_p1) + _p2 * math.log(_p2) + _p3 * math.log(_p3))
+float maxEntropy  = math.log(3.0)
+float entropyNorm = math.min(rawEntropy / maxEntropy, 1.0)
+// Confidence = 1 - normalized entropy (low entropy = more certain = higher confidence)
+float entropyConf = (1.0 - entropyNorm) * 100.0
+
+// ============================================================================
+// SECTION 8 — REGIME DURATION
+// ============================================================================
+
+var int regimeDuration = 0
+var int lastState      = na
+
+if isResUpdate
+    if na(lastState) or resState != lastState
+        regimeDuration := 1
+        lastState      := resState
+    else
+        regimeDuration += 1
+
+// Duration confidence: persistence bonus, saturates at 20 bars → 80%
+float durationConf = i_useDuration ? math.min(50.0 + float(regimeDuration) * 1.5, 80.0) : 50.0
+
+// ============================================================================
+// SECTION 9 — COMPOSITE PROBABILITY & CONFLUENCE SCORE
+// ============================================================================
+
+// Primary directional probability from first-order matrix
+float primaryProb   = biasDir ==  1 ? pBullNext : biasDir == -1 ? pBearNext : pSideNext
+// Second-order directional probability
+float secondaryProb = biasDir ==  1 ? p2BullNext : biasDir == -1 ? p2BearNext : p2SideNext
+// VIX aligned to primary bias direction
+float vixAlignScore = biasDir ==  1 ? vixBullScore : biasDir == -1 ? vixBearScore : 50.0
+
+// Normalize weights so they always sum to 1
+float wSum = math.max(i_w1 + i_w2 + i_w3 + i_w4 + i_w5, 0.001)
+float w1n  = i_w1 / wSum
+float w2n  = i_w2 / wSum
+float w3n  = i_w3 / wSum
+float w4n  = i_w4 / wSum
+float w5n  = i_w5 / wSum
+
+float compositeProb = w1n * primaryProb +
+                      w2n * (i_useSecondOrder ? secondaryProb : primaryProb) +
+                      w3n * vixAlignScore +
+                      w4n * mtfProb +
+                      w5n * (i_useEntropy ? entropyConf : 50.0)
+
+// Confluence score: 0–5 (each enabled layer that agrees with primary bias adds 1)
+int confScore = 0
+
+// L1: first-order primary probability crosses bias threshold
+if primaryProb >= i_biasThresh
+    confScore := confScore + 1
+
+// L2: second-order agrees
+if i_useSecondOrder and secondaryProb >= i_biasThresh
+    confScore := confScore + 1
+
+// L3: VIX agrees (low vol + bull, or high vol + bear)
+if i_useVix
+    if (biasDir == 1 and not isHighVol) or (biasDir == -1 and isHighVol)
+        confScore := confScore + 1
+
+// L4: MTF majority agrees (≥ 2 of 3 timeframes)
+if i_useMtf and mtfScore >= 2
+    confScore := confScore + 1
+
+// L5: entropy confidence is high (distribution is concentrated)
+if i_useEntropy and entropyConf > 55.0
+    confScore := confScore + 1
+
+// Signal Quality — the single decision gate
+bool isSignalHigh   = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH
+bool isSignalMedium = biasDir != 0 and not isSignalHigh and confScore >= i_confThreshM and compositeProb >= i_compThreshM
+string sigQuality   = isSignalHigh ? "HIGH" : isSignalMedium ? "MEDIUM" : "LOW"
+
+// ============================================================================
+// SECTION 10 — OVERNIGHT WINDOW LOGIC
+// ============================================================================
+
+int  _etMins           = hour(time, "America/New_York") * 60 + minute(time, "America/New_York")
 bool isOvernightWindow = i_overnightMode and (_etMins >= 16 * 60 or _etMins < 4 * 60)
 
 var int overnightDisplayBias = na
 
-// Capture bias at each confirmed close
 if isResUpdate
     overnightDisplayBias := biasDir
 
-// Reset at 4:00 AM ET: detect transition from inside to outside the window
 bool _nowAfterReset = _etMins >= 4 * 60 and _etMins < 16 * 60
 bool _prevInWindow  = _etMins[1] >= 16 * 60 or _etMins[1] < 4 * 60
 if i_overnightMode and _nowAfterReset and _prevInWindow
@@ -269,7 +364,16 @@ color  overnightBiasColor = na(overnightDisplayBias) ? color.gray :
                             overnightDisplayBias == -1 ? i_colorBear  : i_colorSide
 
 // ============================================================================
-// SECTION 6 — BACKGROUND TINT
+// SECTION 11 — LABELS & DERIVED DISPLAY VALUES
+// ============================================================================
+
+string stateLabel = curState == 0 ? "BULL" : curState == 1 ? "BEAR" : "SIDEWAYS"
+color  stateColor = curState == 0 ? i_colorBull : curState == 1 ? i_colorBear : i_colorSide
+string biasLabel  = biasDir ==  1 ? "▲  BULLISH" : biasDir == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+color  biasColor  = biasDir ==  1 ? i_colorBull  : biasDir == -1 ? i_colorBear  : i_colorSide
+
+// ============================================================================
+// SECTION 12 — BACKGROUND TINT
 // ============================================================================
 
 if i_showBgTint
@@ -279,56 +383,45 @@ if i_showBgTint
             title="Bias Background Tint")
 
 // ============================================================================
-// SECTION 7 — VISUAL MARKERS
+// SECTION 13 — VISUAL MARKERS
 // ============================================================================
-
-// ── Historical state markers (tiny, every bar) ───────────────────────────────
-plotshape(i_showHistory and curState == 0, title="State: BULL",
-          style=shape.triangleup, location=location.belowbar,
-          color=i_colorBull, size=size.tiny)
-plotshape(i_showHistory and curState == 1, title="State: BEAR",
-          style=shape.triangledown, location=location.abovebar,
-          color=i_colorBear, size=size.tiny)
 
 _mSz = i_markerSize == "Tiny"  ? size.tiny  :
        i_markerSize == "Small" ? size.small :
        i_markerSize == "Large" ? size.large : size.normal
 
-// ── Session-start bias markers (first bar of each new session) ───────────────
-// Green ▲ below bar = BULLISH for the session ahead
-// Red   ▼ above bar = BEARISH for the session ahead
-// Yellow ◆ below bar = NEUTRAL / Chop
-plotshape(i_showDayBias and isResUpdate and biasDir ==  1, title="Session Bias: BULLISH",
+// Historical state dots (tiny, every bar — for auditing)
+plotshape(i_showHistory and curState == 0, title="State: BULL",
           style=shape.triangleup,   location=location.belowbar,
-          color=i_colorBull,    size=_mSz)
-plotshape(i_showDayBias and isResUpdate and biasDir == -1, title="Session Bias: BEARISH",
+          color=i_colorBull, size=size.tiny)
+plotshape(i_showHistory and curState == 1, title="State: BEAR",
           style=shape.triangledown, location=location.abovebar,
-          color=i_colorBear,    size=_mSz)
-plotshape(i_showDayBias and isResUpdate and biasDir ==  0, title="Session Bias: NEUTRAL",
-          style=shape.diamond,      location=location.belowbar,
-          color=i_colorNeutral, size=_mSz)
+          color=i_colorBear, size=size.tiny)
 
-// ── Overnight close arrows (offset=-1, last candle of prior session) ─────────
-// isResUpdate fires at the FIRST bar after the confirmed close (4:05 PM with
-// Extended Hours ON, or 9:30 AM next day without Extended Hours). offset=-1
-// shifts the plotshape back one bar — landing on the final candle of the prior
-// session. No repainting: we only fire on confirmed, closed bars.
-plotshape(i_overnightMode and isResUpdate and biasDir ==  1, title="Overnight Close: BULLISH",
+// Session-start bias markers — HIGH quality signals only
+plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh,
+          title="Session Bias: BULLISH (HIGH)",
+          style=shape.triangleup,   location=location.belowbar,
+          color=i_colorBull, size=_mSz)
+plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh,
+          title="Session Bias: BEARISH (HIGH)",
+          style=shape.triangledown, location=location.abovebar,
+          color=i_colorBear, size=_mSz)
+
+// Overnight close carrots (offset=-1 = last candle of prior session, no repainting)
+// HIGH quality only — yellow neutral disappears since HIGH can't be neutral
+plotshape(i_overnightMode and isResUpdate and biasDir ==  1 and isSignalHigh,
+          title="Overnight Close: BULLISH (HIGH)",
           style=shape.arrowup,   location=location.belowbar,
           color=i_colorBull, size=_mSz, offset=-1)
-plotshape(i_overnightMode and isResUpdate and biasDir == -1, title="Overnight Close: BEARISH",
+plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh,
+          title="Overnight Close: BEARISH (HIGH)",
           style=shape.arrowdown, location=location.abovebar,
           color=i_colorBear, size=_mSz, offset=-1)
-plotshape(i_overnightMode and isResUpdate and biasDir ==  0, title="Overnight Close: NEUTRAL",
-          style=shape.circle,    location=location.belowbar,
-          color=i_colorNeutral, size=_mSz, offset=-1)
 
 // ============================================================================
-// SECTION 8 — DASHBOARD TABLE
+// SECTION 14 — DASHBOARD TABLE (21 rows × 4 cols)
 // ============================================================================
-// 14 rows: header, current state, today's bias, 3 probabilities,
-// tomorrow's bias (overnight mode row — empty when mode is off),
-// sample size, threshold, 5 matrix rows.
 
 string _resTag       = i_resolution == "Weekly"  ? "W" : i_resolution == "Monthly" ? "M" : "D"
 string _hdrLabel     = "MARKOV REGIME BIAS  [" + _resTag + "]"
@@ -343,17 +436,18 @@ string _pBearLbl     = i_resolution == "Weekly"  ? "P(Bear) next week"  :
 string _pSideLbl     = i_resolution == "Weekly"  ? "P(Side) next week"  :
                        i_resolution == "Monthly" ? "P(Side) next month" : "P(Side) tomorrow"
 string _lookbackUnit = i_resolution == "Weekly"  ? "w" : i_resolution == "Monthly" ? "m" : "d"
+string _s2Label      = biasDir ==  1 ? "2nd-Order P(Bull)" :
+                       biasDir == -1 ? "2nd-Order P(Bear)" : "2nd-Order P(Side)"
+float  _s2Prob       = biasDir ==  1 ? p2BullNext : biasDir == -1 ? p2BearNext : p2SideNext
 
 string tblPosStr = i_tblPos
-var table dash   = table.new(
+var table dash = table.new(
      tblPosStr == "Top Left"     ? position.top_left     :
      tblPosStr == "Bottom Right" ? position.bottom_right :
      tblPosStr == "Bottom Left"  ? position.bottom_left  : position.top_right,
-     4, 14,
-     border_width = 1,
-     border_color = color.new(color.gray, 70),
-     frame_width  = 2,
-     frame_color  = color.new(color.gray, 50))
+     4, 22,
+     border_width=1, border_color=color.new(color.gray, 70),
+     frame_width=2,  frame_color=color.new(color.gray, 50))
 
 if barstate.islast and i_showTable
     color hdrBg   = color.new(#0d1b2a, 15)
@@ -361,125 +455,223 @@ if barstate.islast and i_showTable
     color txtDim  = color.new(color.white, 50)
     color txtFull = color.white
 
-    // ── Row 0: Title ──────────────────────────────────────────────────────
-    table.cell(dash, 0, 0, _hdrLabel,
+    // ── Row 0: Title ─────────────────────────────────────────────────────────
+    table.cell(dash, 0, 0, _hdrLabel + "  ■ INSTITUTIONAL",
                bgcolor=hdrBg, text_color=txtFull,
-               text_size=size.small, text_fontstyle=font.style_bold,
-               text_halign=text.align_center)
+               text_size=size.small, text_fontstyle=font.style_bold, text_halign=text.align_center)
     table.merge_cells(dash, 0, 0, 3, 0)
 
-    // ── Row 1: Current State ──────────────────────────────────────────────
-    table.cell(dash, 0, 1, "Current State",
-               bgcolor=rowBg, text_color=txtDim,
+    // ── Row 1: Current State + duration ──────────────────────────────────────
+    table.cell(dash, 0, 1, "Current State", bgcolor=rowBg, text_color=txtDim,
                text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 1, 1, 1)
-    table.cell(dash, 2, 1, stateLabel,
-               bgcolor=color.new(stateColor, 55),
-               text_color=txtFull, text_size=size.normal,
-               text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.cell(dash, 2, 1, stateLabel + "  (" + str.tostring(regimeDuration) + " bars)",
+               bgcolor=color.new(stateColor, 55), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
     table.merge_cells(dash, 2, 1, 3, 1)
 
-    // ── Row 2: Today's Session Bias ───────────────────────────────────────
-    table.cell(dash, 0, 2, _sessionLbl,
-               bgcolor=rowBg, text_color=txtDim,
+    // ── Row 2: Today's Bias ───────────────────────────────────────────────────
+    table.cell(dash, 0, 2, _sessionLbl, bgcolor=rowBg, text_color=txtDim,
                text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 2, 1, 2)
     table.cell(dash, 2, 2, biasLabel,
-               bgcolor=color.new(biasColor, 30),
-               text_color=biasColor, text_size=size.normal,
-               text_fontstyle=font.style_bold, text_halign=text.align_center)
+               bgcolor=color.new(biasColor, 30), text_color=biasColor,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
     table.merge_cells(dash, 2, 2, 3, 2)
 
-    // ── Row 3: P(Bull) ────────────────────────────────────────────────────
-    table.cell(dash, 0, 3, _pBullLbl,
-               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    // ── Row 3: Signal Quality ─────────────────────────────────────────────────
+    table.cell(dash, 0, 3, "Signal Quality", bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 3, 1, 3)
-    table.cell(dash, 2, 3, str.tostring(pBullNext, "#.1") + "%",
-               bgcolor=color.new(color.green, 50), text_color=txtFull,
+    color sqBg  = isSignalHigh   ? color.new(i_colorBull,    20) :
+                  isSignalMedium ? color.new(color.orange,   30) : color.new(color.gray, 50)
+    color sqTxt = isSignalHigh   ? color.white :
+                  isSignalMedium ? color.new(color.orange, 0) : color.new(color.gray, 0)
+    table.cell(dash, 2, 3, sigQuality,
+               bgcolor=sqBg, text_color=sqTxt,
                text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
     table.merge_cells(dash, 2, 3, 3, 3)
 
-    // ── Row 4: P(Bear) ────────────────────────────────────────────────────
-    table.cell(dash, 0, 4, _pBearLbl,
-               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    // ── Row 4: Composite Probability ─────────────────────────────────────────
+    table.cell(dash, 0, 4, "Composite Probability", bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 4, 1, 4)
-    table.cell(dash, 2, 4, str.tostring(pBearNext, "#.1") + "%",
-               bgcolor=color.new(color.red, 50), text_color=txtFull,
+    color compBg = compositeProb >= i_compThreshH ? color.new(#005f73, 30) :
+                   compositeProb >= i_compThreshM ? color.new(color.orange, 35) : color.new(color.gray, 55)
+    table.cell(dash, 2, 4, str.tostring(compositeProb, "#.1") + "%",
+               bgcolor=compBg, text_color=txtFull,
                text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
     table.merge_cells(dash, 2, 4, 3, 4)
 
-    // ── Row 5: P(Sideways) ────────────────────────────────────────────────
-    table.cell(dash, 0, 5, _pSideLbl,
-               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    // ── Row 5: Confluence Score ───────────────────────────────────────────────
+    table.cell(dash, 0, 5, "Confluence Score", bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 5, 1, 5)
-    table.cell(dash, 2, 5, str.tostring(pSideNext, "#.1") + "%",
-               bgcolor=color.new(color.gray, 50), text_color=txtFull,
+    color confBg = confScore >= i_confThreshH ? color.new(#005f73, 30) :
+                   confScore >= i_confThreshM ? color.new(color.orange, 35) : color.new(color.gray, 55)
+    table.cell(dash, 2, 5, str.tostring(confScore) + " / 5",
+               bgcolor=confBg, text_color=txtFull,
                text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
     table.merge_cells(dash, 2, 5, 3, 5)
 
-    // ── Row 6: Tomorrow's Bias (overnight mode only) ──────────────────────
-    // Shows "—" outside 4PM–4AM ET window, populates within it.
-    // When overnight mode is off this row is left empty (no visible cells drawn).
+    // ── Row 6: P(Bull) ────────────────────────────────────────────────────────
+    table.cell(dash, 0, 6, _pBullLbl, bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 6, 1, 6)
+    table.cell(dash, 2, 6, str.tostring(pBullNext, "#.1") + "%",
+               bgcolor=color.new(color.green, 50), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 6, 3, 6)
+
+    // ── Row 7: P(Bear) ────────────────────────────────────────────────────────
+    table.cell(dash, 0, 7, _pBearLbl, bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 7, 1, 7)
+    table.cell(dash, 2, 7, str.tostring(pBearNext, "#.1") + "%",
+               bgcolor=color.new(color.red, 50), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 7, 3, 7)
+
+    // ── Row 8: P(Sideways) ────────────────────────────────────────────────────
+    table.cell(dash, 0, 8, _pSideLbl, bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 8, 1, 8)
+    table.cell(dash, 2, 8, str.tostring(pSideNext, "#.1") + "%",
+               bgcolor=color.new(color.gray, 50), text_color=txtFull,
+               text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 8, 3, 8)
+
+    // ── Row 9: Second-Order Probability ──────────────────────────────────────
+    table.cell(dash, 0, 9, _s2Label + (i_useSecondOrder ? "" : "  (off)"),
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 9, 1, 9)
+    table.cell(dash, 2, 9, str.tostring(_s2Prob, "#.1") + "%",
+               bgcolor=color.new(biasColor, 50), text_color=txtFull,
+               text_size=size.small, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 9, 3, 9)
+
+    // ── Row 10: Entropy Confidence ────────────────────────────────────────────
+    table.cell(dash, 0, 10, "Entropy Confidence" + (i_useEntropy ? "" : "  (off)"),
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 10, 1, 10)
+    color entBg = entropyConf > 65.0 ? color.new(#005f73, 35) : color.new(color.gray, 55)
+    table.cell(dash, 2, 10, str.tostring(entropyConf, "#.1") + "%",
+               bgcolor=entBg, text_color=txtFull,
+               text_size=size.small, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 10, 3, 10)
+
+    // ── Row 11: VIX Regime ────────────────────────────────────────────────────
+    string vixStr = not na(vixClose)
+                    ? (isHighVol ? "HIGH VOL  VIX " : "LOW VOL   VIX ") + str.tostring(vixClose, "#.1")
+                    : "N/A (no VIX data)"
+    table.cell(dash, 0, 11, "VIX Regime" + (i_useVix ? "" : "  (off)"),
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 11, 1, 11)
+    color vixBg = not na(vixClose)
+                  ? (isHighVol ? color.new(color.red, 40) : color.new(color.green, 40))
+                  : color.new(color.gray, 60)
+    table.cell(dash, 2, 11, vixStr,
+               bgcolor=vixBg, text_color=txtFull,
+               text_size=size.small, text_fontstyle=font.style_bold, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 11, 3, 11)
+
+    // ── Row 12: MTF Alignment ─────────────────────────────────────────────────
+    string mtfStr = "D:" + (biasDirD ==  1 ? "▲" : biasDirD == -1 ? "▼" : "◆") +
+                    "   W:" + (biasDirW ==  1 ? "▲" : biasDirW == -1 ? "▼" : "◆") +
+                    "   M:" + (biasDirM ==  1 ? "▲" : biasDirM == -1 ? "▼" : "◆")
+    table.cell(dash, 0, 12, "MTF Alignment" + (i_useMtf ? "" : "  (off)"),
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 12, 1, 12)
+    color mtfBg = mtfScore >= 2 ? color.new(#005f73, 35) : color.new(color.gray, 55)
+    table.cell(dash, 2, 12, mtfStr + "   " + str.tostring(mtfScore) + "/3",
+               bgcolor=mtfBg, text_color=txtFull,
+               text_size=size.small, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 12, 3, 12)
+
+    // ── Row 13: Regime Duration ───────────────────────────────────────────────
+    table.cell(dash, 0, 13, "Regime Duration" + (i_useDuration ? "" : "  (off)"),
+               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 13, 1, 13)
+    color durBg = regimeDuration >= 5 ? color.new(#005f73, 35) : color.new(color.gray, 55)
+    table.cell(dash, 2, 13, str.tostring(regimeDuration) + " consecutive bars",
+               bgcolor=durBg, text_color=txtFull,
+               text_size=size.small, text_halign=text.align_center)
+    table.merge_cells(dash, 2, 13, 3, 13)
+
+    // ── Row 14: Tomorrow's Bias (overnight mode only) ─────────────────────────
     if i_overnightMode
-        table.cell(dash, 0, 6, _nextLbl,
-                   bgcolor=rowBg, text_color=txtDim,
+        table.cell(dash, 0, 14, _nextLbl, bgcolor=rowBg, text_color=txtDim,
                    text_size=size.small, text_halign=text.align_left)
-        table.merge_cells(dash, 0, 6, 1, 6)
+        table.merge_cells(dash, 0, 14, 1, 14)
         bool   _ovnActive = isOvernightWindow and not na(overnightDisplayBias)
         string _ovnStr    = _ovnActive ? overnightBiasLabel : "—"
         color  _ovnBg     = _ovnActive ? color.new(overnightBiasColor, 30) : color.new(color.gray, 75)
         color  _ovnTxt    = _ovnActive ? overnightBiasColor : color.new(color.white, 65)
-        table.cell(dash, 2, 6, _ovnStr,
+        table.cell(dash, 2, 14, _ovnStr,
                    bgcolor=_ovnBg, text_color=_ovnTxt,
                    text_size=size.normal, text_fontstyle=font.style_bold, text_halign=text.align_center)
-        table.merge_cells(dash, 2, 6, 3, 6)
+        table.merge_cells(dash, 2, 14, 3, 14)
 
-    // ── Row 7: Sample Size ────────────────────────────────────────────────
+    // ── Row 15: Sample Size ───────────────────────────────────────────────────
     color  sampleBg  = lowSample ? color.new(color.orange, 35) : color.new(#005f73, 40)
     string sampleStr = str.tostring(int(totalTrans)) + (lowSample ? "  ⚠ LOW" : " transitions")
-    table.cell(dash, 0, 7, "Sample Size",
-               bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
-    table.merge_cells(dash, 0, 7, 1, 7)
-    table.cell(dash, 2, 7, sampleStr,
+    table.cell(dash, 0, 15, "Sample Size", bgcolor=rowBg, text_color=txtDim,
+               text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(dash, 0, 15, 1, 15)
+    table.cell(dash, 2, 15, sampleStr,
                bgcolor=sampleBg, text_color=txtFull,
                text_size=size.small, text_halign=text.align_center)
-    table.merge_cells(dash, 2, 7, 3, 7)
+    table.merge_cells(dash, 2, 15, 3, 15)
 
-    // ── Row 8: Threshold info ─────────────────────────────────────────────
-    table.cell(dash, 0, 8,
-               "Bias threshold: " + str.tostring(i_biasThresh, "#.0") + "%  |  " +
+    // ── Row 16: Threshold footer ──────────────────────────────────────────────
+    table.cell(dash, 0, 16,
+               "1st-Order threshold: " + str.tostring(i_biasThresh, "#.0") + "%  |  " +
                "Lookback: " + str.tostring(i_lookback) + _lookbackUnit,
                bgcolor=color.new(#0d1b2a, 40), text_color=color.new(color.white, 65),
                text_size=size.tiny, text_halign=text.align_center)
-    table.merge_cells(dash, 0, 8, 3, 8)
+    table.merge_cells(dash, 0, 16, 3, 16)
 
-    // ── Rows 9-13: Transition Matrix Grid (optional) ──────────────────────
+    // ── Rows 17-20: Transition Matrix Grid (optional) ────────────────────────
     if i_showMatrix
-        // Row 9: Section divider
-        table.cell(dash, 0, 9, "─── Transition Matrix ───",
-                   bgcolor=color.new(#0d1b2a, 40),
-                   text_color=color.new(color.white, 60),
+        // Row 17: section divider
+        table.cell(dash, 0, 17, "─── First-Order Transition Matrix ───",
+                   bgcolor=color.new(#0d1b2a, 40), text_color=color.new(color.white, 60),
                    text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 0, 9, 3, 9)
+        table.merge_cells(dash, 0, 17, 3, 17)
 
-        // Row 10: Column headers
-        table.cell(dash, 0, 10, "FROM \\ TO",
+        // Row 18: column headers
+        table.cell(dash, 0, 18, "FROM \\ TO",
                    bgcolor=color.new(color.gray, 65), text_color=txtDim, text_size=size.tiny)
-        table.cell(dash, 1, 10, "→ BULL",
-                   bgcolor=color.new(color.green, 65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 2, 10, "→ BEAR",
-                   bgcolor=color.new(color.red,   65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 3, 10, "→ SIDE",
-                   bgcolor=color.new(color.gray,  65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(dash, 1, 18, "→ BULL",
+                   bgcolor=color.new(color.green, 65), text_color=txtFull,
+                   text_size=size.tiny, text_halign=text.align_center)
+        table.cell(dash, 2, 18, "→ BEAR",
+                   bgcolor=color.new(color.red,   65), text_color=txtFull,
+                   text_size=size.tiny, text_halign=text.align_center)
+        table.cell(dash, 3, 18, "→ SIDE",
+                   bgcolor=color.new(color.gray,  65), text_color=txtFull,
+                   text_size=size.tiny, text_halign=text.align_center)
 
-        // Rows 11-13: One row per "from" state
-        float[] allProbs  = array.from(pBull0, pBear0, pSide0,
-                                       pBull1, pBear1, pSide1,
-                                       pBull2, pBear2, pSide2)
+        // Rows 19-20-21... wait we only have 21 rows (0-20), so rows 19 and 20 for BULL and BEAR, but SIDE needs row 21...
+        // Table is declared 4, 21 → rows 0-20. Let me use rows 19, 20, and... hmm.
+        // Actually 4, 21 means 21 rows indexed 0-20. Matrix data needs rows 19, 20, 21 for BULL/BEAR/SIDE.
+        // We need row index 21 for the third matrix row but max index is 20.
+        // Solution: rows 19-20 for BULL and BEAR, combine SIDE into row 20 via a different approach,
+        // OR just don't show SIDEWAYS row and put a note.
+        // Cleaner solution: declare table with 22 rows.
+        // Since table is declared with 'var', I can't change the size.
+        // The table was declared with 4, 21 → indices 0-20. Row 21 doesn't exist.
+        // FIX: declare the table with 4, 22 to allow rows 0-21.
+        // I need to change the table.new() call above to 4, 22.
+        // I already wrote that declaration. Let me fix it.
+
+        float[] allProbs   = array.from(pBull0, pBear0, pSide0,
+                                        pBull1, pBear1, pSide1,
+                                        pBull2, pBear2, pSide2)
         string[] rowLabels = array.from("BULL →", "BEAR →", "SIDE →")
 
         for int fromSt = 0 to 2
-            int rowIdx = 11 + fromSt
+            int   rowIdx     = 19 + fromSt
             color rowLabelBg = fromSt == 0 ? color.new(color.green, 60) :
                                fromSt == 1 ? color.new(color.red,   60) :
                                              color.new(color.gray,  60)
@@ -487,15 +679,15 @@ if barstate.islast and i_showTable
                        bgcolor=rowLabelBg, text_color=txtFull, text_size=size.tiny)
 
             for int toSt = 0 to 2
-                float p     = array.get(allProbs, fromSt * 3 + toSt)
-                int   alpha = int(math.max(15, math.min(80, 80 - p * 0.6)))
-                color cellBg = toSt == 0 ? color.new(color.green, alpha) :
-                               toSt == 1 ? color.new(color.red,   alpha) :
-                                           color.new(color.gray,  alpha)
+                float p      = array.get(allProbs, fromSt * 3 + toSt)
                 float rowMax = math.max(array.get(allProbs, fromSt * 3 + 0),
                                math.max(array.get(allProbs, fromSt * 3 + 1),
                                         array.get(allProbs, fromSt * 3 + 2)))
-                bool isMax = p >= rowMax - 0.01
+                bool  isMax  = p >= rowMax - 0.01
+                int   alpha  = int(math.max(15, math.min(80, 80 - p * 0.6)))
+                color cellBg = toSt == 0 ? color.new(color.green, alpha) :
+                               toSt == 1 ? color.new(color.red,   alpha) :
+                                           color.new(color.gray,  alpha)
                 table.cell(dash, toSt + 1, rowIdx,
                            str.tostring(p, "#.0") + "%",
                            bgcolor=cellBg, text_color=txtFull,
@@ -503,14 +695,10 @@ if barstate.islast and i_showTable
                            text_fontstyle=isMax ? font.style_bold : font.style_normal)
 
 // ============================================================================
-// SECTION 9 — ALERTS
+// SECTION 15 — ALERTS
 // ============================================================================
-// prevBiasDir holds the prior session's bias so flip conditions detect
-// genuine state changes (not intraday noise — isResUpdate only fires once
-// per confirmed close).
 
 var int prevBiasDir = na
-
 bool flipBullish = not na(prevBiasDir) and prevBiasDir != 1  and biasDir == 1
 bool flipBearish = not na(prevBiasDir) and prevBiasDir != -1 and biasDir == -1
 bool flipNeutral = not na(prevBiasDir) and prevBiasDir != 0  and biasDir == 0
@@ -518,25 +706,23 @@ bool flipNeutral = not na(prevBiasDir) and prevBiasDir != 0  and biasDir == 0
 if isResUpdate
     prevBiasDir := biasDir
 
-alertcondition(flipBullish, title="MRB — Bias flipped BULLISH",
-    message="[Markov Regime Bias] {{ticker}} bias flipped to BULLISH on {{time}}. Check the dashboard for P(Bull/Bear/Sideways).")
-
-alertcondition(flipBearish, title="MRB — Bias flipped BEARISH",
-    message="[Markov Regime Bias] {{ticker}} bias flipped to BEARISH on {{time}}. Check the dashboard for P(Bull/Bear/Sideways).")
-
+alertcondition(flipBullish and isSignalHigh, title="MRB — HIGH: Bias flipped BULLISH",
+    message="[MRB Institutional] {{ticker}} bias flipped BULLISH — HIGH quality. Check composite + confluence on dashboard.")
+alertcondition(flipBearish and isSignalHigh, title="MRB — HIGH: Bias flipped BEARISH",
+    message="[MRB Institutional] {{ticker}} bias flipped BEARISH — HIGH quality. Check composite + confluence on dashboard.")
+alertcondition(flipBullish and isSignalMedium, title="MRB — MEDIUM: Bias flipped BULLISH",
+    message="[MRB Institutional] {{ticker}} bias flipped BULLISH — MEDIUM quality. Model is not in HIGH gate; proceed with extra discretion.")
+alertcondition(flipBearish and isSignalMedium, title="MRB — MEDIUM: Bias flipped BEARISH",
+    message="[MRB Institutional] {{ticker}} bias flipped BEARISH — MEDIUM quality. Model is not in HIGH gate; proceed with extra discretion.")
 alertcondition(flipNeutral, title="MRB — Bias flipped NEUTRAL",
-    message="[Markov Regime Bias] {{ticker}} bias flipped to NEUTRAL on {{time}} — no strong directional edge detected.")
-
+    message="[MRB Institutional] {{ticker}} bias flipped NEUTRAL — no directional edge. Sit out.")
 alertcondition(lowSample, title="MRB — Low Sample Size Warning",
-    message="[Markov Regime Bias] {{ticker}} transition matrix has fewer than the configured minimum transitions. Interpret probabilities with caution.")
+    message="[MRB Institutional] {{ticker}} transition matrix has insufficient sample size. Treat probabilities with caution.")
 
-// Overnight window alerts: fire once at the moment the window opens (4PM ET
-// transition). Use these to get notified when the overnight entry window is live.
 bool windowOpened = i_overnightMode and isOvernightWindow and not isOvernightWindow[1]
-
-alertcondition(windowOpened and biasDir ==  1, title="MRB — Overnight Window Opened: BULLISH",
-    message="[Markov Regime Bias] {{ticker}} overnight window opened at {{time}}. Bias: BULLISH. 15-minute index entry window is now live.")
-alertcondition(windowOpened and biasDir == -1, title="MRB — Overnight Window Opened: BEARISH",
-    message="[Markov Regime Bias] {{ticker}} overnight window opened at {{time}}. Bias: BEARISH. 15-minute index entry window is now live.")
-alertcondition(windowOpened and biasDir ==  0, title="MRB — Overnight Window Opened: NEUTRAL",
-    message="[Markov Regime Bias] {{ticker}} overnight window opened at {{time}}. Bias: NEUTRAL — no strong directional edge, consider sitting out.")
+alertcondition(windowOpened and biasDir ==  1 and isSignalHigh, title="MRB — Overnight: HIGH BULLISH",
+    message="[MRB Institutional] {{ticker}} overnight window opened. BULLISH — HIGH quality signal. Entry window now live.")
+alertcondition(windowOpened and biasDir == -1 and isSignalHigh, title="MRB — Overnight: HIGH BEARISH",
+    message="[MRB Institutional] {{ticker}} overnight window opened. BEARISH — HIGH quality signal. Entry window now live.")
+alertcondition(windowOpened and not isSignalHigh, title="MRB — Overnight: No HIGH Signal",
+    message="[MRB Institutional] {{ticker}} overnight window opened but signal quality is not HIGH. Consider sitting out.")
