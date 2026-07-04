@@ -378,10 +378,6 @@ bgcolor(i_showBgTint ? (biasDir == 1 ? color.new(i_colorBull, i_bgAlpha) : biasD
 // SECTION 13 — VISUAL MARKERS
 // ============================================================================
 
-_mSz = i_markerSize == "Tiny"  ? size.tiny  :
-       i_markerSize == "Small" ? size.small :
-       i_markerSize == "Large" ? size.large : size.normal
-
 // Historical state dots (tiny, every bar — for auditing)
 plotshape(i_showHistory and curState == 0, title="State: BULL",
           style=shape.triangleup,   location=location.belowbar,
@@ -391,25 +387,28 @@ plotshape(i_showHistory and curState == 1, title="State: BEAR",
           color=i_colorBear, size=size.tiny)
 
 // Session-start bias markers — HIGH quality signals only
-plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh,
-          title="Session Bias: BULLISH (HIGH)",
-          style=shape.triangleup,   location=location.belowbar,
-          color=i_colorBull, size=_mSz)
-plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh,
-          title="Session Bias: BEARISH (HIGH)",
-          style=shape.triangledown, location=location.abovebar,
-          color=i_colorBear, size=_mSz)
+// plotshape size must be const in v6; one call per size, gated by i_markerSize
+plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.tiny)
+plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.small)
+plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.normal)
+plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.large)
+
+plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.tiny)
+plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.small)
+plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
+plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
 
 // Overnight close carrots (offset=-1 = last candle of prior session, no repainting)
 // HIGH quality only — yellow neutral disappears since HIGH can't be neutral
-plotshape(i_overnightMode and isResUpdate and biasDir ==  1 and isSignalHigh,
-          title="Overnight Close: BULLISH (HIGH)",
-          style=shape.arrowup,   location=location.belowbar,
-          color=i_colorBull, size=_mSz, offset=-1)
-plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh,
-          title="Overnight Close: BEARISH (HIGH)",
-          style=shape.arrowdown, location=location.abovebar,
-          color=i_colorBear, size=_mSz, offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Overnight Close: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.tiny,   offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Overnight Close: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.small,  offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Overnight Close: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.normal, offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Overnight Close: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.large,  offset=-1)
+
+plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Overnight Close: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.tiny,   offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Overnight Close: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.small,  offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Overnight Close: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.normal, offset=-1)
+plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Overnight Close: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.large,  offset=-1)
 
 // ============================================================================
 // SECTION 14 — DASHBOARD TABLE (21 rows × 4 cols)
