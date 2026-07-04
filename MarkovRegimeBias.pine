@@ -562,9 +562,7 @@ if barstate.islast and i_showTable
     table.merge_cells(dash, 2, 11, 3, 11)
 
     // ── Row 12: MTF Alignment ─────────────────────────────────────────────────
-    string mtfStr = "D:" + (biasDirD ==  1 ? "▲" : biasDirD == -1 ? "▼" : "◆") +
-                    "   W:" + (biasDirW ==  1 ? "▲" : biasDirW == -1 ? "▼" : "◆") +
-                    "   M:" + (biasDirM ==  1 ? "▲" : biasDirM == -1 ? "▼" : "◆")
+    string mtfStr = "D:" + (biasDirD ==  1 ? "▲" : biasDirD == -1 ? "▼" : "◆") + "   W:" + (biasDirW ==  1 ? "▲" : biasDirW == -1 ? "▼" : "◆") + "   M:" + (biasDirM ==  1 ? "▲" : biasDirM == -1 ? "▼" : "◆")
     table.cell(dash, 0, 12, "MTF Alignment" + (i_useMtf ? "" : "  (off)"),
                bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 12, 1, 12)
