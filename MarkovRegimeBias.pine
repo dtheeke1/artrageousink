@@ -372,11 +372,7 @@ color  biasColor  = biasDir ==  1 ? i_colorBull  : biasDir == -1 ? i_colorBear  
 // SECTION 12 — BACKGROUND TINT
 // ============================================================================
 
-if i_showBgTint
-    bgcolor(biasDir ==  1 ? color.new(i_colorBull, i_bgAlpha) :
-            biasDir == -1 ? color.new(i_colorBear, i_bgAlpha) :
-                            color.new(i_colorSide, i_bgAlpha),
-            title="Bias Background Tint")
+bgcolor(i_showBgTint ? (biasDir == 1 ? color.new(i_colorBull, i_bgAlpha) : biasDir == -1 ? color.new(i_colorBear, i_bgAlpha) : color.new(i_colorSide, i_bgAlpha)) : na, title="Bias Background Tint")
 
 // ============================================================================
 // SECTION 13 — VISUAL MARKERS
