@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias", shorttitle="MRB", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v1.2", shorttitle="MRB v1.2", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -551,15 +551,11 @@ if barstate.islast and i_showTable
     table.merge_cells(dash, 2, 10, 3, 10)
 
     // ── Row 11: VIX Regime ────────────────────────────────────────────────────
-    string vixStr = not na(vixClose)
-                    ? (isHighVol ? "HIGH VOL  VIX " : "LOW VOL   VIX ") + str.tostring(vixClose, "#.1")
-                    : "N/A (no VIX data)"
+    string vixStr = not na(vixClose) ? (isHighVol ? "HIGH VOL  VIX " : "LOW VOL   VIX ") + str.tostring(vixClose, "#.1") : "N/A (no VIX data)"
     table.cell(dash, 0, 11, "VIX Regime" + (i_useVix ? "" : "  (off)"),
                bgcolor=rowBg, text_color=txtDim, text_size=size.small, text_halign=text.align_left)
     table.merge_cells(dash, 0, 11, 1, 11)
-    color vixBg = not na(vixClose)
-                  ? (isHighVol ? color.new(color.red, 40) : color.new(color.green, 40))
-                  : color.new(color.gray, 60)
+    color vixBg = not na(vixClose) ? (isHighVol ? color.new(color.red, 40) : color.new(color.green, 40)) : color.new(color.gray, 60)
     table.cell(dash, 2, 11, vixStr,
                bgcolor=vixBg, text_color=txtFull,
                text_size=size.small, text_fontstyle=font.style_bold, text_halign=text.align_center)
