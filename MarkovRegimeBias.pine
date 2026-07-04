@@ -83,7 +83,7 @@ i_minSample   = input.int  (30,  "Min Transitions for Warning", minval=5, maxval
 i_overnightMode = input.bool(false, "Overnight / Next Session Mode", group=grpBias,
      tooltip="Carrot arrows on last candle of each session (offset=-1, no repainting). Dashboard populates 4PM–4AM ET, resets at 4AM. Requires Extended Hours ON for 4PM trigger on intraday charts.")
 
-i_showTable   = input.bool  (true,        "Show Dashboard Table",          group=grpVis)
+i_showTable   = input.bool  (true,        "Show Regime Bias Dashboard",    group=grpVis)
 i_showMatrix  = input.bool  (true,        "Show Transition Matrix Grid",   group=grpVis)
 i_showBgTint  = input.bool  (true,        "Show Background Tint",          group=grpVis)
 i_showHistory = input.bool  (true,        "Show Historical State Markers", group=grpVis)
@@ -105,6 +105,9 @@ i_lastNCount     = input.int  (50,                            "N (number of rece
 i_statsDateRange = input.bool (true,                          "Date Range",                   group=grpStats)
 i_drStart        = input.time (timestamp("2025-01-01 00:00"), "Start Date",                   group=grpStats)
 i_drEnd          = input.time (timestamp("2026-12-31 23:59"), "End Date",                     group=grpStats)
+i_showStats  = input.bool  (true,          "Show Signal Performance Dashboard",               group=grpStats)
+i_statsPos   = input.string("Bottom Right","Stats Table Position",
+     options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grpStats)
 
 // ============================================================================
 // SECTION 2 — RESOLUTION DATA (CONFIRMED BARS, NO LOOKAHEAD)
@@ -518,7 +521,15 @@ var table dash = table.new(
      tblPosStr == "Top Left"     ? position.top_left     :
      tblPosStr == "Bottom Right" ? position.bottom_right :
      tblPosStr == "Bottom Left"  ? position.bottom_left  : position.top_right,
-     4, 35,
+     4, 22,
+     border_width=1, border_color=color.new(color.gray, 70),
+     frame_width=2,  frame_color=color.new(color.gray, 50))
+
+var table statsDash = table.new(
+     i_statsPos == "Top Left"     ? position.top_left     :
+     i_statsPos == "Bottom Right" ? position.bottom_right :
+     i_statsPos == "Bottom Left"  ? position.bottom_left  : position.top_right,
+     4, 13,
      border_width=1, border_color=color.new(color.gray, 70),
      frame_width=2,  frame_color=color.new(color.gray, 50))
 
@@ -747,118 +758,125 @@ if barstate.islast and i_showTable
                            bgcolor=cellBg, text_color=txtFull,
                            text_size=size.tiny, text_halign=text.align_center)
 
-    // ── Rows 22-34: Signal Performance (Backtesting) ─────────────────────────
+// ============================================================================
+// SECTION 14B — SIGNAL PERFORMANCE DASHBOARD (independent table)
+// ============================================================================
+
+if barstate.islast and i_showStats
+    color hdrBg   = color.new(#0d1b2a, 15)
+    color txtFull = color.white
     color _sBg     = color.new(#0a1a2e, 30)
     color _sHdrBg  = color.new(#1a3a5c, 15)
     color _sOffBg  = color.new(color.gray, 72)
     color _sOffTxt = color.new(color.white, 60)
 
-    table.cell(dash, 0, 22, "─── SIGNAL PERFORMANCE ───",
-               bgcolor=color.new(#0d1b2a, 40), text_color=color.new(color.white, 55),
-               text_size=size.tiny, text_halign=text.align_center)
-    table.merge_cells(dash, 0, 22, 3, 22)
+    // ── Row 0: Title ─────────────────────────────────────────────────────────
+    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.2]",
+               bgcolor=hdrBg, text_color=txtFull,
+               text_size=size.small, text_halign=text.align_center)
+    table.merge_cells(statsDash, 0, 0, 3, 0)
 
-    // ── All History (rows 23-26) ──────────────────────────────────────────────
-    table.cell(dash, 0, 23, i_statsAllHist ? "ALL HISTORY" : "ALL HISTORY  (off)",
+    // ── All History (rows 1-4) ────────────────────────────────────────────────
+    table.cell(statsDash, 0, 1, i_statsAllHist ? "ALL HISTORY" : "ALL HISTORY  (off)",
                bgcolor=i_statsAllHist ? _sHdrBg : _sOffBg,
                text_color=i_statsAllHist ? color.new(color.white, 15) : _sOffTxt,
                text_size=size.tiny, text_halign=text.align_center)
-    table.merge_cells(dash, 0, 23, 3, 23)
+    table.merge_cells(statsDash, 0, 1, 3, 1)
 
     if i_statsAllHist
         int ahTotW = ahBullW + ahBearW
         int ahTotL = ahBullL + ahBearL
         string ahStreakStr = ahStreak == 0 ? "--" : str.tostring(ahStreak) + (ahLastRes == 1 ? "W" : "L") + " str"
 
-        table.cell(dash, 0, 24, "Bullish",            bgcolor=color.new(i_colorBull, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 24, f_wl(ahBullW,ahBullL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 1, 24, 2, 24)
-        table.cell(dash, 3, 24, f_wr(ahBullW,ahBullL), bgcolor=color.new(i_colorBull, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 2, "Bullish",             bgcolor=color.new(i_colorBull, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 2, f_wl(ahBullW,ahBullL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(statsDash, 1, 2, 2, 2)
+        table.cell(statsDash, 3, 2, f_wr(ahBullW,ahBullL), bgcolor=color.new(i_colorBull, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
 
-        table.cell(dash, 0, 25, "Bearish",            bgcolor=color.new(i_colorBear, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 25, f_wl(ahBearW,ahBearL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 1, 25, 2, 25)
-        table.cell(dash, 3, 25, f_wr(ahBearW,ahBearL), bgcolor=color.new(i_colorBear, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 3, "Bearish",             bgcolor=color.new(i_colorBear, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 3, f_wl(ahBearW,ahBearL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(statsDash, 1, 3, 2, 3)
+        table.cell(statsDash, 3, 3, f_wr(ahBearW,ahBearL), bgcolor=color.new(i_colorBear, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
 
-        table.cell(dash, 0, 26, "Overall",            bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 26, f_wl(ahTotW,ahTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 2, 26, f_wr(ahTotW,ahTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 3, 26, ahStreakStr,           bgcolor=color.new(ahLastRes == 1 ? color.green : color.red, 65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 4, "Overall",             bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 4, f_wl(ahTotW,ahTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 2, 4, f_wr(ahTotW,ahTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 3, 4, ahStreakStr,            bgcolor=color.new(ahLastRes == 1 ? color.green : color.red, 65), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
     else
-        table.cell(dash, 0, 24, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 24, 3, 24)
-        table.cell(dash, 0, 25, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 25, 3, 25)
-        table.cell(dash, 0, 26, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 26, 3, 26)
+        table.cell(statsDash, 0, 2, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 2, 3, 2)
+        table.cell(statsDash, 0, 3, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 3, 3, 3)
+        table.cell(statsDash, 0, 4, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 4, 3, 4)
 
-    // ── Last N Signals (rows 27-30) ───────────────────────────────────────────
+    // ── Last N Signals (rows 5-8) ─────────────────────────────────────────────
     string _lnHdr = "LAST " + str.tostring(i_lastNCount) + " SIGNALS" + (i_statsLastN ? "  (" + str.tostring(lnSz) + " logged)" : "  (off)")
-    table.cell(dash, 0, 27, _lnHdr,
+    table.cell(statsDash, 0, 5, _lnHdr,
                bgcolor=i_statsLastN ? _sHdrBg : _sOffBg,
                text_color=i_statsLastN ? color.new(color.white, 15) : _sOffTxt,
                text_size=size.tiny, text_halign=text.align_center)
-    table.merge_cells(dash, 0, 27, 3, 27)
+    table.merge_cells(statsDash, 0, 5, 3, 5)
 
     if i_statsLastN
         int lnTotW = lnBullW + lnBearW
         int lnTotL = lnBullL + lnBearL
 
-        table.cell(dash, 0, 28, "Bullish",            bgcolor=color.new(i_colorBull, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 28, f_wl(lnBullW,lnBullL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 1, 28, 2, 28)
-        table.cell(dash, 3, 28, f_wr(lnBullW,lnBullL), bgcolor=color.new(i_colorBull, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 6, "Bullish",             bgcolor=color.new(i_colorBull, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 6, f_wl(lnBullW,lnBullL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(statsDash, 1, 6, 2, 6)
+        table.cell(statsDash, 3, 6, f_wr(lnBullW,lnBullL), bgcolor=color.new(i_colorBull, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
 
-        table.cell(dash, 0, 29, "Bearish",            bgcolor=color.new(i_colorBear, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 29, f_wl(lnBearW,lnBearL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 1, 29, 2, 29)
-        table.cell(dash, 3, 29, f_wr(lnBearW,lnBearL), bgcolor=color.new(i_colorBear, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 7, "Bearish",             bgcolor=color.new(i_colorBear, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 7, f_wl(lnBearW,lnBearL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(statsDash, 1, 7, 2, 7)
+        table.cell(statsDash, 3, 7, f_wr(lnBearW,lnBearL), bgcolor=color.new(i_colorBear, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
 
-        table.cell(dash, 0, 30, "Overall",            bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 30, f_wl(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 2, 30, f_wr(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 3, 30, str.tostring(lnSz) + " / " + str.tostring(i_lastNCount), bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 8, "Overall",             bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 8, f_wl(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 2, 8, f_wr(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 3, 8, str.tostring(lnSz) + " / " + str.tostring(i_lastNCount), bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
     else
-        table.cell(dash, 0, 28, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 28, 3, 28)
-        table.cell(dash, 0, 29, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 29, 3, 29)
-        table.cell(dash, 0, 30, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 30, 3, 30)
+        table.cell(statsDash, 0, 6, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 6, 3, 6)
+        table.cell(statsDash, 0, 7, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 7, 3, 7)
+        table.cell(statsDash, 0, 8, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 8, 3, 8)
 
-    // ── Date Range (rows 31-34) ───────────────────────────────────────────────
+    // ── Date Range (rows 9-12) ────────────────────────────────────────────────
     string _drHdr = "DATE RANGE" + (i_statsDateRange ? ":  " + str.format_time(i_drStart, "MMM yyyy", "UTC") + " – " + str.format_time(i_drEnd, "MMM yyyy", "UTC") : "  (off)")
-    table.cell(dash, 0, 31, _drHdr,
+    table.cell(statsDash, 0, 9, _drHdr,
                bgcolor=i_statsDateRange ? _sHdrBg : _sOffBg,
                text_color=i_statsDateRange ? color.new(color.white, 15) : _sOffTxt,
                text_size=size.tiny, text_halign=text.align_center)
-    table.merge_cells(dash, 0, 31, 3, 31)
+    table.merge_cells(statsDash, 0, 9, 3, 9)
 
     if i_statsDateRange
         int drTotW = drBullW + drBearW
         int drTotL = drBullL + drBearL
 
-        table.cell(dash, 0, 32, "Bullish",            bgcolor=color.new(i_colorBull, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 32, f_wl(drBullW,drBullL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 1, 32, 2, 32)
-        table.cell(dash, 3, 32, f_wr(drBullW,drBullL), bgcolor=color.new(i_colorBull, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 10, "Bullish",             bgcolor=color.new(i_colorBull, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 10, f_wl(drBullW,drBullL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(statsDash, 1, 10, 2, 10)
+        table.cell(statsDash, 3, 10, f_wr(drBullW,drBullL), bgcolor=color.new(i_colorBull, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
 
-        table.cell(dash, 0, 33, "Bearish",            bgcolor=color.new(i_colorBear, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 33, f_wl(drBearW,drBearL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.merge_cells(dash, 1, 33, 2, 33)
-        table.cell(dash, 3, 33, f_wr(drBearW,drBearL), bgcolor=color.new(i_colorBear, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 11, "Bearish",             bgcolor=color.new(i_colorBear, 60), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 11, f_wl(drBearW,drBearL), bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.merge_cells(statsDash, 1, 11, 2, 11)
+        table.cell(statsDash, 3, 11, f_wr(drBearW,drBearL), bgcolor=color.new(i_colorBear, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
 
-        table.cell(dash, 0, 34, "Overall",            bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 1, 34, f_wl(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 2, 34, f_wr(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
-        table.cell(dash, 3, 34, str.tostring(drTotW + drTotL) + " signals", bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 0, 12, "Overall",             bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 1, 12, f_wl(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 2, 12, f_wr(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
+        table.cell(statsDash, 3, 12, str.tostring(drTotW + drTotL) + " signals", bgcolor=color.new(color.gray, 62), text_color=txtFull, text_size=size.tiny, text_halign=text.align_center)
     else
-        table.cell(dash, 0, 32, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 32, 3, 32)
-        table.cell(dash, 0, 33, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 33, 3, 33)
-        table.cell(dash, 0, 34, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
-        table.merge_cells(dash, 0, 34, 3, 34)
+        table.cell(statsDash, 0, 10, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 10, 3, 10)
+        table.cell(statsDash, 0, 11, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 11, 3, 11)
+        table.cell(statsDash, 0, 12, "", bgcolor=_sOffBg, text_color=txtFull, text_size=size.tiny)
+        table.merge_cells(statsDash, 0, 12, 3, 12)
 
 // ============================================================================
 // SECTION 15 — ALERTS
