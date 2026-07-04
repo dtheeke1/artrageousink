@@ -356,12 +356,8 @@ bool _prevInWindow  = _etMins[1] >= 16 * 60 or _etMins[1] < 4 * 60
 if i_overnightMode and _nowAfterReset and _prevInWindow
     overnightDisplayBias := na
 
-string overnightBiasLabel = na(overnightDisplayBias) ? "—" :
-                            overnightDisplayBias ==  1 ? "▲  BULLISH" :
-                            overnightDisplayBias == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
-color  overnightBiasColor = na(overnightDisplayBias) ? color.gray :
-                            overnightDisplayBias ==  1 ? i_colorBull  :
-                            overnightDisplayBias == -1 ? i_colorBear  : i_colorSide
+string overnightBiasLabel = na(overnightDisplayBias) ? "--" : overnightDisplayBias == 1 ? "▲  BULLISH" : overnightDisplayBias == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+color  overnightBiasColor = na(overnightDisplayBias) ? color.gray : overnightDisplayBias == 1 ? i_colorBull : overnightDisplayBias == -1 ? i_colorBear : i_colorSide
 
 // ============================================================================
 // SECTION 11 — LABELS & DERIVED DISPLAY VALUES
@@ -425,19 +421,13 @@ plotshape(i_overnightMode and isResUpdate and biasDir == -1 and isSignalHigh,
 
 string _resTag       = i_resolution == "Weekly"  ? "W" : i_resolution == "Monthly" ? "M" : "D"
 string _hdrLabel     = "MARKOV REGIME BIAS  [" + _resTag + "]"
-string _sessionLbl   = i_resolution == "Weekly"  ? "This Week's Bias"   :
-                       i_resolution == "Monthly" ? "This Month's Bias"  : "Today's Session Bias"
-string _nextLbl      = i_resolution == "Weekly"  ? "Next Week's Bias"   :
-                       i_resolution == "Monthly" ? "Next Month's Bias"  : "Tomorrow's Bias"
-string _pBullLbl     = i_resolution == "Weekly"  ? "P(Bull) next week"  :
-                       i_resolution == "Monthly" ? "P(Bull) next month" : "P(Bull) tomorrow"
-string _pBearLbl     = i_resolution == "Weekly"  ? "P(Bear) next week"  :
-                       i_resolution == "Monthly" ? "P(Bear) next month" : "P(Bear) tomorrow"
-string _pSideLbl     = i_resolution == "Weekly"  ? "P(Side) next week"  :
-                       i_resolution == "Monthly" ? "P(Side) next month" : "P(Side) tomorrow"
-string _lookbackUnit = i_resolution == "Weekly"  ? "w" : i_resolution == "Monthly" ? "m" : "d"
-string _s2Label      = biasDir ==  1 ? "2nd-Order P(Bull)" :
-                       biasDir == -1 ? "2nd-Order P(Bear)" : "2nd-Order P(Side)"
+string _sessionLbl   = i_resolution == "Weekly" ? "This Week's Bias" : i_resolution == "Monthly" ? "This Month's Bias" : "Today's Session Bias"
+string _nextLbl      = i_resolution == "Weekly" ? "Next Week's Bias" : i_resolution == "Monthly" ? "Next Month's Bias" : "Tomorrow's Bias"
+string _pBullLbl     = i_resolution == "Weekly" ? "P(Bull) next week" : i_resolution == "Monthly" ? "P(Bull) next month" : "P(Bull) tomorrow"
+string _pBearLbl     = i_resolution == "Weekly" ? "P(Bear) next week" : i_resolution == "Monthly" ? "P(Bear) next month" : "P(Bear) tomorrow"
+string _pSideLbl     = i_resolution == "Weekly" ? "P(Side) next week" : i_resolution == "Monthly" ? "P(Side) next month" : "P(Side) tomorrow"
+string _lookbackUnit = i_resolution == "Weekly" ? "w" : i_resolution == "Monthly" ? "m" : "d"
+string _s2Label      = biasDir == 1 ? "2nd-Order P(Bull)" : biasDir == -1 ? "2nd-Order P(Bear)" : "2nd-Order P(Side)"
 float  _s2Prob       = biasDir ==  1 ? p2BullNext : biasDir == -1 ? p2BearNext : p2SideNext
 
 string tblPosStr = i_tblPos
@@ -651,19 +641,6 @@ if barstate.islast and i_showTable
         table.cell(dash, 3, 18, "→ SIDE",
                    bgcolor=color.new(color.gray,  65), text_color=txtFull,
                    text_size=size.tiny, text_halign=text.align_center)
-
-        // Rows 19-20-21... wait we only have 21 rows (0-20), so rows 19 and 20 for BULL and BEAR, but SIDE needs row 21...
-        // Table is declared 4, 21 → rows 0-20. Let me use rows 19, 20, and... hmm.
-        // Actually 4, 21 means 21 rows indexed 0-20. Matrix data needs rows 19, 20, 21 for BULL/BEAR/SIDE.
-        // We need row index 21 for the third matrix row but max index is 20.
-        // Solution: rows 19-20 for BULL and BEAR, combine SIDE into row 20 via a different approach,
-        // OR just don't show SIDEWAYS row and put a note.
-        // Cleaner solution: declare table with 22 rows.
-        // Since table is declared with 'var', I can't change the size.
-        // The table was declared with 4, 21 → indices 0-20. Row 21 doesn't exist.
-        // FIX: declare the table with 4, 22 to allow rows 0-21.
-        // I need to change the table.new() call above to 4, 22.
-        // I already wrote that declaration. Let me fix it.
 
         float[] allProbs   = array.from(pBull0, pBear0, pSide0,
                                         pBull1, pBear1, pSide1,
