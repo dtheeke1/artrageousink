@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v1.2", shorttitle="MRB v1.2", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v1.3", shorttitle="MRB v1.3", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -390,7 +390,9 @@ string sigQuality   = isSignalHigh ? "HIGH" : isSignalMedium ? "MEDIUM" : "LOW"
 // ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
 // ============================================================================
-// Win: same-bar open→close in the signal direction.
+// Normal mode: win = same-bar open→close in the signal direction.
+// Overnight/gap mode: win = current open vs. previous close (gap direction).
+//   Bull win: open > close[1]   Bear win: open < close[1]
 // Only HIGH quality signals counted — matches the chart marker gate.
 // When MACD filter is ON, only MACD-confirmed HIGH signals are counted.
 // barstate.isconfirmed ensures the bar is fully closed before counting.
@@ -410,7 +412,9 @@ var int   drBearL   = 0
 var float[] lnArr = array.new_float(0)
 
 if isResUpdate and isSignalHigh and biasDir != 0 and barstate.isconfirmed
-    bool isWin   = (biasDir == 1 and close >= open) or (biasDir == -1 and close <= open)
+    bool isWin = i_overnightMode
+                 ? (biasDir == 1 and open > close[1]) or (biasDir == -1 and open < close[1])
+                 : (biasDir == 1 and close >= open)   or (biasDir == -1 and close <= open)
     int  thisRes = isWin ? 1 : -1
 
     // All History
@@ -826,8 +830,10 @@ if barstate.islast and i_showStats
     color _sOffTxt = color.new(color.white, 25)
 
     // ── Row 0: Title ─────────────────────────────────────────────────────────
-    string _statsTitleSuffix = i_useMacdFilter ? "  [MACD filtered]" : ""
-    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.2]" + _statsTitleSuffix,
+    string _gapSuffix        = i_overnightMode ? "  [gap]"         : ""
+    string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
+    string _statsTitleSuffix = _gapSuffix + _macdSuffix
+    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.3]" + _statsTitleSuffix,
                bgcolor=hdrBg, text_color=txtFull,
                text_size=size.small, text_halign=text.align_center)
     table.merge_cells(statsDash, 0, 0, 3, 0)
