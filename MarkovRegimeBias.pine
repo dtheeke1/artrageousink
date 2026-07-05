@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v1.3", shorttitle="MRB v1.3", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v1.4", shorttitle="MRB v1.4", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -412,9 +412,9 @@ var int   drBearL   = 0
 var float[] lnArr = array.new_float(0)
 
 if isResUpdate and isSignalHigh and biasDir != 0 and barstate.isconfirmed
-    bool isWin = i_overnightMode
-                 ? (biasDir == 1 and open > close[1]) or (biasDir == -1 and open < close[1])
-                 : (biasDir == 1 and close >= open)   or (biasDir == -1 and close <= open)
+    bool _overnightWin = (biasDir == 1 and open > close[1]) or (biasDir == -1 and open < close[1])
+    bool _sessionWin   = (biasDir == 1 and close >= open)   or (biasDir == -1 and close <= open)
+    bool isWin         = i_overnightMode ? _overnightWin : _sessionWin
     int  thisRes = isWin ? 1 : -1
 
     // All History
@@ -833,7 +833,7 @@ if barstate.islast and i_showStats
     string _gapSuffix        = i_overnightMode ? "  [gap]"         : ""
     string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
     string _statsTitleSuffix = _gapSuffix + _macdSuffix
-    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.3]" + _statsTitleSuffix,
+    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.4]" + _statsTitleSuffix,
                bgcolor=hdrBg, text_color=txtFull,
                text_size=size.small, text_halign=text.align_center)
     table.merge_cells(statsDash, 0, 0, 3, 0)
