@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v1.4", shorttitle="MRB v1.4", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v1.5", shorttitle="MRB v1.5", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -91,7 +91,7 @@ i_overnightMode = input.bool(false, "Overnight / Next Session Mode", group=grpBi
 i_showTable   = input.bool  (true,        "Show Regime Bias Dashboard",    group=grpVis)
 i_showMatrix  = input.bool  (true,        "Show Transition Matrix Grid",   group=grpVis)
 i_showBgTint  = input.bool  (true,        "Show Background Tint",          group=grpVis)
-i_showHistory = input.bool  (true,        "Show Historical State Markers", group=grpVis)
+i_showHistory = input.bool  (false,       "Show Historical State Markers", group=grpVis)
 i_tblPos      = input.string("Top Right", "Table Position",
      options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grpVis)
 i_colorBull   = input.color (color.new(#00c087, 0),  "Bull Colour",     group=grpVis)
@@ -833,7 +833,7 @@ if barstate.islast and i_showStats
     string _gapSuffix        = i_overnightMode ? "  [gap]"         : ""
     string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
     string _statsTitleSuffix = _gapSuffix + _macdSuffix
-    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.4]" + _statsTitleSuffix,
+    table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.5]" + _statsTitleSuffix,
                bgcolor=hdrBg, text_color=txtFull,
                text_size=size.small, text_halign=text.align_center)
     table.merge_cells(statsDash, 0, 0, 3, 0)
