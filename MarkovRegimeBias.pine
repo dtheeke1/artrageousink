@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v1.6", shorttitle="MRB v1.6", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v1.7", shorttitle="MRB v1.7", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -306,8 +306,8 @@ if isResUpdate
     else
         regimeDuration += 1
 
-// Duration confidence: persistence bonus, saturates at 20 bars → 80%
-float durationConf = i_useDuration ? math.min(50.0 + float(regimeDuration) * 1.5, 80.0) : 50.0
+// Duration persistence boost added to compositeProb (up to +4% at 14+ bars)
+float durationBoost = i_useDuration ? math.min(float(regimeDuration) * 0.3, 4.0) : 0.0
 
 // ============================================================================
 // SECTION 8B — MACD CROSSOVER FILTER
@@ -355,7 +355,8 @@ float compositeProb = w1n * primaryProb +
                       w2n * (i_useSecondOrder ? secondaryProb : primaryProb) +
                       w3n * vixAlignScore +
                       w4n * mtfProb +
-                      w5n * (i_useEntropy ? entropyConf : 50.0)
+                      w5n * (i_useEntropy ? entropyConf : 50.0) +
+                      (biasDir != 0 ? durationBoost : 0.0)
 
 // Confluence score: 0–5 (each enabled layer that agrees with primary bias adds 1)
 int confScore = 0
@@ -805,7 +806,7 @@ if barstate.islast
                                    math.max(array.get(allProbs, fromSt * 3 + 1),
                                             array.get(allProbs, fromSt * 3 + 2)))
                     bool  isMax  = p >= rowMax - 0.01
-                    int   alpha  = int(math.max(5, math.min(55, 55 - p * 0.4)))
+                    int   alpha  = isMax ? 8 : int(math.max(25, math.min(55, 55 - p * 0.4)))
                     color cellBg = toSt == 0 ? color.new(color.green, alpha) :
                                    toSt == 1 ? color.new(color.red,   alpha) :
                                                color.new(color.gray,  alpha)
@@ -827,7 +828,7 @@ if barstate.islast
         string _gapSuffix        = i_overnightMode ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.6]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.7]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=size.small, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
