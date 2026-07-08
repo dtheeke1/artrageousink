@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.0** — next must be v2.1
+- Current version: **v2.1** — next must be v2.2
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -47,3 +47,8 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and 3 overnight alertconditions. Added i_statsTblSize dropdown
         (Tiny/Small/Normal/Large, default Small) — _sSz variable drives all
         statsDash text_size params for legibility control.
+- v2.1: Fixed next-session carrot arrow overlapping session-start triangle on
+        the same candle. When isResUpdate fires for week N, the triangle lands
+        on week N and the carrot (offset=-1) landed on week N-1 — which already
+        has its own triangle, creating a "Christmas tree." Fix: offset=-1 → -2
+        so the carrot skips back one extra bar, clearing any triangle on week N-1.
