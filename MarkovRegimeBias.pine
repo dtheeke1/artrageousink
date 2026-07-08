@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v2.1", shorttitle="MRB v2.1", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v2.2", shorttitle="MRB v2.2", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -510,6 +510,15 @@ color  stateColor = curState == 0 ? i_colorBull : curState == 1 ? i_colorBear : 
 string biasLabel  = biasDir ==  1 ? "▲  BULLISH" : biasDir == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
 color  biasColor  = biasDir ==  1 ? i_colorBull  : biasDir == -1 ? i_colorBear  : i_colorSide
 
+// Next-session carrot suppression: track whether the prior resolution bar was
+// a HIGH signal (i.e., already has a session-start triangle on it). When it
+// did, offset=-1 would land the carrot ON that triangle — the Christmas tree.
+// Snapshot before the update so the check reflects the PRIOR bar's state.
+var bool prevResWasHigh = false
+bool priorResHigh = prevResWasHigh
+if isResUpdate
+    prevResWasHigh := isSignalHigh
+
 // ============================================================================
 // SECTION 12 — BACKGROUND TINT
 // ============================================================================
@@ -540,18 +549,20 @@ plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
 
-// Next-session carrot arrows (offset=-1 = last candle of current session, no repainting)
+// Next-session carrot arrows (offset=-1 = last candle of current session).
+// priorResHigh gate: if the prior resolution bar was also HIGH it already has
+// a triangle — suppress the carrot so it doesn't stack on that same bar.
 // Fires on HIGH quality signals only. Independent of gap performance tracking.
 // Works for Daily, Weekly, and Monthly resolutions.
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.tiny,   offset=-2)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.small,  offset=-2)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.normal, offset=-2)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.large,  offset=-2)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and not priorResHigh and i_markerSize == "Tiny",   title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.tiny,   offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and not priorResHigh and i_markerSize == "Small",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.small,  offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and not priorResHigh and i_markerSize == "Normal", title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.normal, offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and not priorResHigh and i_markerSize == "Large",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.belowbar,  color=i_colorBull, size=size.large,  offset=-1)
 
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.tiny,   offset=-2)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.small,  offset=-2)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.normal, offset=-2)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.large,  offset=-2)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and not priorResHigh and i_markerSize == "Tiny",   title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.tiny,   offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and not priorResHigh and i_markerSize == "Small",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.small,  offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and not priorResHigh and i_markerSize == "Normal", title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.normal, offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and not priorResHigh and i_markerSize == "Large",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.abovebar, color=i_colorBear, size=size.large,  offset=-1)
 
 // ============================================================================
 // SECTION 13B — LAST-N STATS + DISPLAY HELPERS
@@ -880,7 +891,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v2.1]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v2.2]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)

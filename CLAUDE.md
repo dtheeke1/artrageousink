@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.1** — next must be v2.2
+- Current version: **v2.2** — next must be v2.3
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -47,8 +47,14 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and 3 overnight alertconditions. Added i_statsTblSize dropdown
         (Tiny/Small/Normal/Large, default Small) — _sSz variable drives all
         statsDash text_size params for legibility control.
-- v2.1: Fixed next-session carrot arrow overlapping session-start triangle on
-        the same candle. When isResUpdate fires for week N, the triangle lands
-        on week N and the carrot (offset=-1) landed on week N-1 — which already
-        has its own triangle, creating a "Christmas tree." Fix: offset=-1 → -2
-        so the carrot skips back one extra bar, clearing any triangle on week N-1.
+- v2.1: Attempted fix for next-session carrot / session triangle Christmas tree
+        by changing offset=-1 → -2. Incomplete: the stacking still occurred
+        because any fixed offset lands on a bar that may still have a triangle
+        when there are consecutive HIGH signals.
+- v2.2: Proper fix for Christmas tree. Root cause: the carrot at offset=-1
+        always draws on the PREVIOUS resolution bar, which has its own triangle
+        whenever that bar was also a HIGH signal. Fix: added priorResHigh bool
+        (snapshot of prevResWasHigh before the isResUpdate update block) and
+        gated all 8 carrot plotshape calls with `and not priorResHigh`. Carrot
+        only fires when the prior resolution bar was NOT a HIGH signal (no
+        triangle there). Reverted offset back to -1.
