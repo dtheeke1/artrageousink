@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v1.9** — next must be v2.0
+- Current version: **v2.0** — next must be v2.1
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -38,3 +38,12 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         Fix: snapshot bullExhaustedAtOpen/bearExhaustedAtOpen before the
         update block; notExhausted uses the snapshot so a same-bar retest
         cannot unlock a same-bar signal. Reset must close on a prior bar.
+- v2.0: Split i_overnightMode into two independent toggles:
+        i_nextSessionMode (Visuals group) — offset=-1 carrot arrows at close
+        of current session for D/W/M; visual only, no performance impact.
+        i_gapMode (Backtesting group) — win measured as overnight gap (open
+        vs prior close) instead of session direction (open→close); independent
+        of visual arrows. Removed all overnight window time logic (Section 10)
+        and 3 overnight alertconditions. Added i_statsTblSize dropdown
+        (Tiny/Small/Normal/Large, default Small) — _sSz variable drives all
+        statsDash text_size params for legibility control.
