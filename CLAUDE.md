@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v1.8** — next must be v1.9
+- Current version: **v1.9** — next must be v2.0
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -32,3 +32,9 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         low <= ema20 - N×ATR; resets when high >= ema10. notExhausted gate
         added to isSignalHigh. Dashboard row 5 shows live state. Table
         expanded from 23 to 24 rows; matrix rows shifted from 18-22 to 19-23.
+- v1.9: Fixed exhaustion filter same-bar race condition. notExhausted used
+        live bullExhausted flag, which could be cleared intra-bar by an EMA10
+        retest on the same bar the signal fires — causing a spurious marker.
+        Fix: snapshot bullExhaustedAtOpen/bearExhaustedAtOpen before the
+        update block; notExhausted uses the snapshot so a same-bar retest
+        cannot unlock a same-bar signal. Reset must close on a prior bar.

@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v1.8", shorttitle="MRB v1.8", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v1.9", shorttitle="MRB v1.9", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -359,6 +359,12 @@ float exhaustAtr = ta.atr(i_atrLen)
 var bool bullExhausted = false
 var bool bearExhausted = false
 
+// Snapshot BEFORE updating — signal gate uses prior-bar state so a same-bar
+// EMA10 reset cannot unlock the signal on the very bar the retest occurs.
+// Reset must be confirmed on a closed bar before the next signal can fire.
+bool bullExhaustedAtOpen = bullExhausted
+bool bearExhaustedAtOpen = bearExhausted
+
 if i_useExhaustion
     if high >= ema20 + i_exhaustAtrMult * exhaustAtr
         bullExhausted := true
@@ -421,7 +427,8 @@ if i_useEntropy and entropyConf > 55.0
 
 // Signal Quality — the single decision gate
 // macdAligned is true when MACD filter is off; notExhausted is true when exhaustion filter is off
-bool notExhausted   = not i_useExhaustion or (biasDir == 1 ? not bullExhausted : not bearExhausted)
+// Uses AtOpen snapshot so a same-bar EMA10 retest cannot unlock the signal mid-bar
+bool notExhausted   = not i_useExhaustion or (biasDir == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
 bool isSignalHigh   = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH and macdAligned and notExhausted
 bool isSignalMedium = biasDir != 0 and not isSignalHigh and confScore >= i_confThreshM and compositeProb >= i_compThreshM
 string sigQuality   = isSignalHigh ? "HIGH" : isSignalMedium ? "MEDIUM" : "LOW"
@@ -881,7 +888,7 @@ if barstate.islast
         string _gapSuffix        = i_overnightMode ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.8]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v1.9]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=size.small, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
