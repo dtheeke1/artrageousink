@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.4** — next must be v2.5
+- Current version: **v2.5** — next must be v2.6
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -77,3 +77,11 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         dashboard. Shows average winning move and average losing move (total ÷ count).
         f_fmtAvg(float total, int count) returns "--" when count==0 to avoid division
         by zero. statsDash expanded from 16 to 19 rows (new rows 6, 12, 18).
+- v2.5: Three changes: (1) Added Avg Net row to each tracking section of statsDash
+        (below Avg Move). Formula: net price move / total signals. Displayed as a single
+        merged cell (green/red bg). statsDash expanded from 19 to 22 rows. (2) Added new
+        Evaluation Dashboard (evalDash, 4×9 table). Shows: bias + signal quality, composite
+        probability, confluence score, and Date Range perf stats (Overall W/L, Price Move,
+        Avg Move, Avg Net). Controlled by i_showEval (default ON) and i_evalPos (default
+        Top Left). (3) Changed defaults: i_showTable and i_showStats now default OFF so the
+        Evaluation Dashboard is the only visible panel on fresh load.
