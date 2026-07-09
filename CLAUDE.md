@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.7** — next must be v2.8
+- Current version: **v2.8** — next must be v2.9
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -101,3 +101,9 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         evalDash Signal row (2) text_color changed from sqTxtV to color.white — orange on
         orange-tinted bg was unreadable. Brightness: all evalDash value-cell alpha values
         reduced to 0 (solid) so colors are vivid rather than faded.
+- v2.8: evalDash bottom section (rows 6-8: Overall, Price Move, Avg Move) alpha set to 0
+        (solid) — gray/green/red cells were faded. _sBgV changed from #0a1a2e@10 to
+        #1a3a5c@0 (solid visible navy). evNetBgV green/red alpha 25→0. Added
+        i_evalTblSize input (Tiny/Small/Normal/Large, default Small) in Evaluation
+        Dashboard group — evalDash now has its own size control independent of
+        i_statsTblSize. _sSzV now reads i_evalTblSize instead of i_statsTblSize.
