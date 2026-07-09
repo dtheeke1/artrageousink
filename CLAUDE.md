@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.8** — next must be v2.9
+- Current version: **v2.9** — next must be v3.0
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -107,3 +107,14 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         i_evalTblSize input (Tiny/Small/Normal/Large, default Small) in Evaluation
         Dashboard group — evalDash now has its own size control independent of
         i_statsTblSize. _sSzV now reads i_evalTblSize instead of i_statsTblSize.
+- v2.9: Two bug fixes. (1) Arrow flickering mid-week (Bug 2): Extension Exhaustion
+        Filter update block gated with `barstate.isconfirmed` — exhaustion flags now
+        only update on closed bars, so live intraweek price on an open weekly bar
+        cannot flip bullExhausted/bearExhausted and cause the session triangle to
+        appear/disappear during the week. Signal is stable for the entire current
+        period. (2) Replay carrot disappears (Bug 1): All 8 next-session carrot
+        plotshape calls changed from offset=-1 to offset=0 (no offset). The carrot
+        now draws on the isResUpdate bar itself instead of requiring the NEXT bar to
+        exist, so it is visible in Replay mode. Visual change: carrot now appears at
+        the START of a new session period (same bar as the session triangle, opposite
+        side) rather than at the END of the prior period.
