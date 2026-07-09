@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.2** — next must be v2.3
+- Current version: **v2.3** — next must be v2.4
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -58,3 +58,12 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         gated all 8 carrot plotshape calls with `and not priorResHigh`. Carrot
         only fires when the prior resolution bar was NOT a HIGH signal (no
         triangle there). Reverted offset back to -1.
+- v2.3: Added Price Move profitability row to each tracking section of the
+        Signal Performance dashboard. Signed price move in signal direction:
+        session mode = close-open (bull) / open-close (bear); gap mode =
+        open-close[1] (bull) / close[1]-open (bear). Positive = win direction,
+        negative = loss direction. Win $, Loss $, Net $ per window (All History
+        row 5, Last N row 10, Date Range row 15). statsDash expanded from 13
+        to 16 rows. New accumulators: ahBull/BearWAmt/LAmt, drBull/BearWAmt/
+        LAmt, lnAmtArr parallel rolling array. Helper f_fmtAmt returns "+X.XX"
+        or "-X.XX".

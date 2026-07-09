@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v2.2", shorttitle="MRB v2.2", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v2.3", shorttitle="MRB v2.3", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -467,7 +467,18 @@ var int   drBullL   = 0
 var int   drBearW   = 0
 var int   drBearL   = 0
 
-var float[] lnArr = array.new_float(0)
+var float[] lnArr    = array.new_float(0)
+var float[] lnAmtArr = array.new_float(0)
+
+var float ahBullWAmt = 0.0
+var float ahBullLAmt = 0.0
+var float ahBearWAmt = 0.0
+var float ahBearLAmt = 0.0
+
+var float drBullWAmt = 0.0
+var float drBullLAmt = 0.0
+var float drBearWAmt = 0.0
+var float drBearLAmt = 0.0
 
 if isResUpdate and isSignalHigh and biasDir != 0 and barstate.isconfirmed
     bool _gapWin     = (biasDir == 1 and open > close[1]) or (biasDir == -1 and open < close[1])
@@ -475,24 +486,37 @@ if isResUpdate and isSignalHigh and biasDir != 0 and barstate.isconfirmed
     bool isWin       = i_gapMode ? _gapWin : _sessionWin
     int  thisRes = isWin ? 1 : -1
 
+    // Signed price move in signal direction (positive = win, negative = loss)
+    float _sessionMove = biasDir == 1 ? (close - open) : (open - close)
+    float _gapMove     = biasDir == 1 ? (open - close[1]) : (close[1] - open)
+    float priceMove    = i_gapMode ? _gapMove : _sessionMove
+
     // All History
     if biasDir == 1
-        ahBullW += isWin ? 1 : 0
-        ahBullL += isWin ? 0 : 1
+        ahBullW    += isWin ? 1         : 0
+        ahBullL    += isWin ? 0         : 1
+        ahBullWAmt += isWin ? priceMove : 0.0
+        ahBullLAmt += isWin ? 0.0       : priceMove
     else
-        ahBearW += isWin ? 1 : 0
-        ahBearL += isWin ? 0 : 1
+        ahBearW    += isWin ? 1         : 0
+        ahBearL    += isWin ? 0         : 1
+        ahBearWAmt += isWin ? priceMove : 0.0
+        ahBearLAmt += isWin ? 0.0       : priceMove
     ahStreak  := thisRes == ahLastRes ? ahStreak + 1 : 1
     ahLastRes := thisRes
 
     // Date Range
     if time >= i_drStart and time <= i_drEnd
         if biasDir == 1
-            drBullW += isWin ? 1 : 0
-            drBullL += isWin ? 0 : 1
+            drBullW    += isWin ? 1         : 0
+            drBullL    += isWin ? 0         : 1
+            drBullWAmt += isWin ? priceMove : 0.0
+            drBullLAmt += isWin ? 0.0       : priceMove
         else
-            drBearW += isWin ? 1 : 0
-            drBearL += isWin ? 0 : 1
+            drBearW    += isWin ? 1         : 0
+            drBearL    += isWin ? 0         : 1
+            drBearWAmt += isWin ? priceMove : 0.0
+            drBearLAmt += isWin ? 0.0       : priceMove
 
     // Last N (rolling array capped at i_lastNCount)
     // Encoding: 1.0=bull-win  -1.0=bull-loss  2.0=bear-win  -2.0=bear-loss
@@ -500,6 +524,9 @@ if isResUpdate and isSignalHigh and biasDir != 0 and barstate.isconfirmed
     array.push(lnArr, code)
     if array.size(lnArr) > i_lastNCount
         array.shift(lnArr)
+    array.push(lnAmtArr, priceMove)
+    if array.size(lnAmtArr) > i_lastNCount
+        array.shift(lnAmtArr)
 
 // ============================================================================
 // SECTION 11 — LABELS & DERIVED DISPLAY VALUES
@@ -586,12 +613,28 @@ if i_statsLastN and lnSz > 0
         else
             lnBearL := lnBearL + 1
 
+// Recompute Last-N price move amounts from parallel rolling array
+float lnWinAmt  = 0.0
+float lnLossAmt = 0.0
+int   lnAmtSz   = array.size(lnAmtArr)
+if i_statsLastN and lnAmtSz > 0
+    for i = 0 to lnAmtSz - 1
+        float av = array.get(lnAmtArr, i)
+        if av >= 0.0
+            lnWinAmt  += av
+        else
+            lnLossAmt += av
+
 f_wr(int w, int l) =>
     int tot = w + l
     tot == 0 ? "  -  " : str.tostring(math.round(float(w) / float(tot) * 100.0)) + "%"
 
 f_wl(int w, int l) =>
     str.tostring(w) + "W  " + str.tostring(l) + "L"
+
+f_fmtAmt(float v) =>
+    string s = str.tostring(math.abs(v), "0.00")
+    v < 0.0 ? "-" + s : "+" + s
 
 // ============================================================================
 // SECTION 14 — REGIME BIAS DASHBOARD (24 rows × 4 cols)
@@ -621,7 +664,7 @@ var table statsDash = table.new(
      i_statsPos == "Top Left"     ? position.top_left     :
      i_statsPos == "Bottom Right" ? position.bottom_right :
      i_statsPos == "Bottom Left"  ? position.bottom_left  : position.top_right,
-     4, 13,
+     4, 16,
      border_width=1, border_color=color.new(color.gray, 70),
      frame_width=2,  frame_color=color.new(color.gray, 50))
 
@@ -891,12 +934,12 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v2.2]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v2.3]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
 
-        // ── All History (rows 1-4) ─────────────────────────────────────────────
+        // ── All History (rows 1-5) ─────────────────────────────────────────────
         table.cell(statsDash, 0, 1, i_statsAllHist ? "ALL HISTORY" : "ALL HISTORY  (off)",
                    bgcolor=i_statsAllHist ? _sHdrBg : _sOffBg,
                    text_color=i_statsAllHist ? color.new(color.white, 15) : _sOffTxt,
@@ -919,6 +962,14 @@ if barstate.islast
             table.cell(statsDash, 1, 4, f_wl(ahTotW,ahTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
             table.cell(statsDash, 2, 4, f_wr(ahTotW,ahTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
             table.cell(statsDash, 3, 4, ahStreakStr,            bgcolor=color.new(ahLastRes == 1 ? color.green : color.red, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            float ahWinAmt  = ahBullWAmt + ahBearWAmt
+            float ahLossAmt = ahBullLAmt + ahBearLAmt
+            float ahNetAmt  = ahWinAmt + ahLossAmt
+            color ahNetBg   = ahNetAmt >= 0.0 ? color.new(color.green, 25) : color.new(color.red, 25)
+            table.cell(statsDash, 0, 5, "Price Move",           bgcolor=color.new(color.gray, 40), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 5, f_fmtAmt(ahWinAmt),    bgcolor=color.new(color.green, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 2, 5, f_fmtAmt(ahLossAmt),   bgcolor=color.new(color.red,   30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 3, 5, f_fmtAmt(ahNetAmt),    bgcolor=ahNetBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
         else
             table.cell(statsDash, 0, 2, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
             table.merge_cells(statsDash, 0, 2, 3, 2)
@@ -926,68 +977,88 @@ if barstate.islast
             table.merge_cells(statsDash, 0, 3, 3, 3)
             table.cell(statsDash, 0, 4, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
             table.merge_cells(statsDash, 0, 4, 3, 4)
+            table.cell(statsDash, 0, 5, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.merge_cells(statsDash, 0, 5, 3, 5)
 
-        // ── Last N Signals (rows 5-8) ──────────────────────────────────────────
+        // ── Last N Signals (rows 6-10) ─────────────────────────────────────────
         string _lnHdr = "LAST " + str.tostring(i_lastNCount) + " SIGNALS" + (i_statsLastN ? "  (" + str.tostring(lnSz) + " logged)" : "  (off)")
-        table.cell(statsDash, 0, 5, _lnHdr,
+        table.cell(statsDash, 0, 6, _lnHdr,
                    bgcolor=i_statsLastN ? _sHdrBg : _sOffBg,
                    text_color=i_statsLastN ? color.new(color.white, 15) : _sOffTxt,
                    text_size=_sSz, text_halign=text.align_center)
-        table.merge_cells(statsDash, 0, 5, 3, 5)
+        table.merge_cells(statsDash, 0, 6, 3, 6)
 
         if i_statsLastN
             int lnTotW = lnBullW + lnBearW
             int lnTotL = lnBullL + lnBearL
-            table.cell(statsDash, 0, 6, "Bullish",             bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 1, 6, f_wl(lnBullW,lnBullL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.merge_cells(statsDash, 1, 6, 2, 6)
-            table.cell(statsDash, 3, 6, f_wr(lnBullW,lnBullL), bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 0, 7, "Bearish",             bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 1, 7, f_wl(lnBearW,lnBearL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 0, 7,  "Bullish",             bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 7,  f_wl(lnBullW,lnBullL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
             table.merge_cells(statsDash, 1, 7, 2, 7)
-            table.cell(statsDash, 3, 7, f_wr(lnBearW,lnBearL), bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 0, 8, "Overall",             bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 1, 8, f_wl(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 2, 8, f_wr(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 3, 8, str.tostring(lnSz) + " / " + str.tostring(i_lastNCount), bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 3, 7,  f_wr(lnBullW,lnBullL), bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 0, 8,  "Bearish",             bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 8,  f_wl(lnBearW,lnBearL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.merge_cells(statsDash, 1, 8, 2, 8)
+            table.cell(statsDash, 3, 8,  f_wr(lnBearW,lnBearL), bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 0, 9,  "Overall",             bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 9,  f_wl(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 2, 9,  f_wr(lnTotW,lnTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 3, 9,  str.tostring(lnSz) + " / " + str.tostring(i_lastNCount), bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            float lnNetAmt = lnWinAmt + lnLossAmt
+            color lnNetBg  = lnNetAmt >= 0.0 ? color.new(color.green, 25) : color.new(color.red, 25)
+            table.cell(statsDash, 0, 10, "Price Move",          bgcolor=color.new(color.gray, 40), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 10, f_fmtAmt(lnWinAmt),   bgcolor=color.new(color.green, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 2, 10, f_fmtAmt(lnLossAmt),  bgcolor=color.new(color.red,   30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 3, 10, f_fmtAmt(lnNetAmt),   bgcolor=lnNetBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
         else
-            table.cell(statsDash, 0, 6, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
-            table.merge_cells(statsDash, 0, 6, 3, 6)
-            table.cell(statsDash, 0, 7, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.cell(statsDash, 0, 7,  "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
             table.merge_cells(statsDash, 0, 7, 3, 7)
-            table.cell(statsDash, 0, 8, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.cell(statsDash, 0, 8,  "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
             table.merge_cells(statsDash, 0, 8, 3, 8)
+            table.cell(statsDash, 0, 9,  "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.merge_cells(statsDash, 0, 9, 3, 9)
+            table.cell(statsDash, 0, 10, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.merge_cells(statsDash, 0, 10, 3, 10)
 
-        // ── Date Range (rows 9-12) ─────────────────────────────────────────────
+        // ── Date Range (rows 11-15) ────────────────────────────────────────────
         string _drHdr = "DATE RANGE" + (i_statsDateRange ? ":  " + str.format_time(i_drStart, "MMM yyyy", "UTC") + " – " + str.format_time(i_drEnd, "MMM yyyy", "UTC") : "  (off)")
-        table.cell(statsDash, 0, 9, _drHdr,
+        table.cell(statsDash, 0, 11, _drHdr,
                    bgcolor=i_statsDateRange ? _sHdrBg : _sOffBg,
                    text_color=i_statsDateRange ? color.new(color.white, 15) : _sOffTxt,
                    text_size=_sSz, text_halign=text.align_center)
-        table.merge_cells(statsDash, 0, 9, 3, 9)
+        table.merge_cells(statsDash, 0, 11, 3, 11)
 
         if i_statsDateRange
             int drTotW = drBullW + drBearW
             int drTotL = drBullL + drBearL
-            table.cell(statsDash, 0, 10, "Bullish",             bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 1, 10, f_wl(drBullW,drBullL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.merge_cells(statsDash, 1, 10, 2, 10)
-            table.cell(statsDash, 3, 10, f_wr(drBullW,drBullL), bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 0, 11, "Bearish",             bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 1, 11, f_wl(drBearW,drBearL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.merge_cells(statsDash, 1, 11, 2, 11)
-            table.cell(statsDash, 3, 11, f_wr(drBearW,drBearL), bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 0, 12, "Overall",             bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 1, 12, f_wl(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 2, 12, f_wr(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
-            table.cell(statsDash, 3, 12, str.tostring(drTotW + drTotL) + " signals", bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 0, 12, "Bullish",             bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 12, f_wl(drBullW,drBullL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.merge_cells(statsDash, 1, 12, 2, 12)
+            table.cell(statsDash, 3, 12, f_wr(drBullW,drBullL), bgcolor=color.new(i_colorBull, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 0, 13, "Bearish",             bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 13, f_wl(drBearW,drBearL), bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.merge_cells(statsDash, 1, 13, 2, 13)
+            table.cell(statsDash, 3, 13, f_wr(drBearW,drBearL), bgcolor=color.new(i_colorBear, 25), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 0, 14, "Overall",             bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 14, f_wl(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 2, 14, f_wr(drTotW,drTotL),  bgcolor=_sBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 3, 14, str.tostring(drTotW + drTotL) + " signals", bgcolor=color.new(color.gray, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            float drWinAmt  = drBullWAmt + drBearWAmt
+            float drLossAmt = drBullLAmt + drBearLAmt
+            float drNetAmt  = drWinAmt + drLossAmt
+            color drNetBg   = drNetAmt >= 0.0 ? color.new(color.green, 25) : color.new(color.red, 25)
+            table.cell(statsDash, 0, 15, "Price Move",          bgcolor=color.new(color.gray, 40), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 1, 15, f_fmtAmt(drWinAmt),   bgcolor=color.new(color.green, 30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 2, 15, f_fmtAmt(drLossAmt),  bgcolor=color.new(color.red,   30), text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
+            table.cell(statsDash, 3, 15, f_fmtAmt(drNetAmt),   bgcolor=drNetBg, text_color=txtFull, text_size=_sSz, text_halign=text.align_center)
         else
-            table.cell(statsDash, 0, 10, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
-            table.merge_cells(statsDash, 0, 10, 3, 10)
-            table.cell(statsDash, 0, 11, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
-            table.merge_cells(statsDash, 0, 11, 3, 11)
             table.cell(statsDash, 0, 12, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
             table.merge_cells(statsDash, 0, 12, 3, 12)
+            table.cell(statsDash, 0, 13, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.merge_cells(statsDash, 0, 13, 3, 13)
+            table.cell(statsDash, 0, 14, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.merge_cells(statsDash, 0, 14, 3, 14)
+            table.cell(statsDash, 0, 15, "", bgcolor=_sOffBg, text_color=txtFull, text_size=_sSz)
+            table.merge_cells(statsDash, 0, 15, 3, 15)
 
 // ============================================================================
 // SECTION 15 — ALERTS
