@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.5** — next must be v2.6
+- Current version: **v2.6** — next must be v2.7
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -85,3 +85,11 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         Avg Move, Avg Net). Controlled by i_showEval (default ON) and i_evalPos (default
         Top Left). (3) Changed defaults: i_showTable and i_showStats now default OFF so the
         Evaluation Dashboard is the only visible panel on fresh load.
+        Bug fixed same version: CE10156 in Section 14C — multi-line ternary color
+        declarations in if-block scope collapsed to single lines.
+- v2.6: Redesigned evalDash layout for clarity. Old row 1 had two unlabeled colored
+        boxes (bias + signal quality side by side) — unreadable without context. Fix:
+        each metric now has its own labeled row: row 1 = "Bias" label + value (cols 1-3),
+        row 2 = "Signal" label + value (cols 1-3), rows 3-4 unchanged. Avg Net removed
+        as a standalone row; now occupies the 4th column (col 3) of the Avg Move row
+        (row 8), eliminating the empty box that was there. Table stays 4×9.
