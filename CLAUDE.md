@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.6** — next must be v2.7
+- Current version: **v2.7** — next must be v2.8
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -93,3 +93,11 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         row 2 = "Signal" label + value (cols 1-3), rows 3-4 unchanged. Avg Net removed
         as a standalone row; now occupies the 4th column (col 3) of the Avg Move row
         (row 8), eliminating the empty box that was there. Table stays 4×9.
+- v2.7: Three default changes + evalDash readability + brightness. Defaults changed:
+        i_resolution "Daily"→"Weekly", i_showMatrix true→false, i_showBgTint true→false,
+        i_nextSessionMode false→true, i_evalPos "Top Left"→"Bottom Right",
+        i_useExhaustion false→true. evalDash Bias row (1) text_color changed from
+        biasColor to color.white — biasColor (e.g. red) on red-tinted bg was unreadable.
+        evalDash Signal row (2) text_color changed from sqTxtV to color.white — orange on
+        orange-tinted bg was unreadable. Brightness: all evalDash value-cell alpha values
+        reduced to 0 (solid) so colors are vivid rather than faded.
