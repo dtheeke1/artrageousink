@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v3.1", shorttitle="MRB v3.1", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v3.2", shorttitle="MRB v3.2", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -956,7 +956,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.1]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.2]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1129,7 +1129,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.1]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.2]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1145,10 +1145,7 @@ if barstate.islast
         // When isSignalHighRaw is true but isSignalHigh is false, a filter is
         // downgrading the signal. Show which filter is responsible so the user
         // understands why MEDIUM is shown despite HIGH composite + confluence.
-        string _evalSigLabel = isSignalHigh ? "HIGH" :
-            isSignalMedium and isSignalHighRaw and not notExhausted ? "MEDIUM  (ext)" :
-            isSignalMedium and isSignalHighRaw and not macdAligned  ? "MEDIUM  (MACD)" :
-            isSignalMedium ? "MEDIUM" : "LOW"
+        string _evalSigLabel = isSignalHigh ? "HIGH" : isSignalMedium and isSignalHighRaw and not notExhausted ? "MEDIUM  (ext)" : isSignalMedium and isSignalHighRaw and not macdAligned ? "MEDIUM  (MACD)" : isSignalMedium ? "MEDIUM" : "LOW"
         color sqBgV  = isSignalHigh ? color.new(i_colorBull, 0) : isSignalMedium ? color.new(color.orange, 0) : color.new(color.gray, 15)
         table.cell(evalDash, 0, 2, "Signal",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
