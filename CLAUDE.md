@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v2.3** — next must be v2.4
+- Current version: **v2.4** — next must be v2.5
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -67,3 +67,13 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         to 16 rows. New accumulators: ahBull/BearWAmt/LAmt, drBull/BearWAmt/
         LAmt, lnAmtArr parallel rolling array. Helper f_fmtAmt returns "+X.XX"
         or "-X.XX".
+- v2.4: Two changes: (1) Fixed consecutive-signal carrot gap: v2.2's priorResHigh
+        suppression prevented the next-session carrot from appearing at all when
+        consecutive HIGH signals fired. Fix: removed priorResHigh entirely; instead
+        placed bull carrots at location.abovebar and bear carrots at location.belowbar
+        (opposite sides from their session triangles which are below/above respectively),
+        so a carrot and triangle on the same bar are spatially separated and both always
+        render. (2) Added Avg Move row below each Price Move row in the Signal Performance
+        dashboard. Shows average winning move and average losing move (total ÷ count).
+        f_fmtAvg(float total, int count) returns "--" when count==0 to avoid division
+        by zero. statsDash expanded from 16 to 19 rows (new rows 6, 12, 18).
