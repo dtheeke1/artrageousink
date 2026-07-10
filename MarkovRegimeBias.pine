@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v3.7", shorttitle="MRB v3.7", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v3.8", shorttitle="MRB v3.8", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -583,13 +583,14 @@ plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
 
-// Next-session carrot: label placed at bar_index+1 (Monday's slot), fired at bar N-1's
-// confirmed close (Friday night). Appears in the empty future slot before bar N opens.
-// On Monday when bar N's candle fills that slot, the label stays alongside the triangle.
-// No offset hack needed — label.new() takes an explicit x position.
+// Next-session carrot: label placed at bar_index+1 from the last visible bar.
+// Fires on barstate.islast (not isconfirmed) so it only lives on the most recent bar
+// and always previews ONE slot ahead — the upcoming session. In replay, this means
+// the carrot moves forward as you advance: at bar N-1 it sits at bar N's slot; at
+// bar N it sits at bar N+1's slot. No historical deletion artifacts.
 var label _carrot = na
 
-if i_nextSessionMode and barstate.isconfirmed
+if i_nextSessionMode and barstate.islast
     label.delete(_carrot)
     _carrot := na
     if isSignalHigh and biasDir != 0
@@ -683,7 +684,7 @@ var table evalDash = table.new(
      i_evalPos == "Top Right"    ? position.top_right    :
      i_evalPos == "Bottom Right" ? position.bottom_right :
      i_evalPos == "Bottom Left"  ? position.bottom_left  : position.top_left,
-     4, 16,
+     4, 12,
      border_width=1, border_color=color.new(color.gray, 70),
      frame_width=2,  frame_color=color.new(color.gray, 50))
 
@@ -953,7 +954,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.7]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.8]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1113,10 +1114,16 @@ if barstate.islast
             table.merge_cells(statsDash, 0, 21, 3, 21)
 
     // ── SECTION 14C: EVALUATION DASHBOARD ─────────────────────────────────────
-    // Layout (4×16):
+    // Layout (4×12):
     //   R0: title  |  R1: CURRENT SESSION header  |  R2-5: bias/signal/composite/confluence
-    //   R6: NEXT SESSION header  |  R7: start date  |  R8-11: direction/signal/prob/confluence
-    //   R12: date range header  |  R13-15: perf stats
+    //   R6: NEXT SESSION header  |  R7: start date
+    //   R8: date range header  |  R9-11: perf stats
+    //
+    // Note: NEXT SESSION shows only the start date — the signal forecast rows (R2-5)
+    // already reflect the model's output for the upcoming session since request.security
+    // with lookahead_off returns the last confirmed bar's values, which define the
+    // prediction for the current open period. Duplicating them under NEXT SESSION
+    // would always show identical numbers.
     if i_showEval
         string _sSzV   = i_evalTblSize == "Tiny" ? size.tiny : i_evalTblSize == "Normal" ? size.normal : i_evalTblSize == "Large" ? size.large : size.small
         color hdrBgV   = color.new(#0d1b2a, 0)
@@ -1128,7 +1135,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.7]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.8]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1190,42 +1197,14 @@ if barstate.islast
                    bgcolor=_sBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 7, 3, 7)
 
-        // ── Row 8: Next session direction ─────────────────────────────────────
-        table.cell(evalDash, 0, 8, "Direction",
-                   bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 8, biasLabel,
-                   bgcolor=biasBgV, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
-        table.merge_cells(evalDash, 1, 8, 3, 8)
-
-        // ── Row 9: Next session signal quality ────────────────────────────────
-        table.cell(evalDash, 0, 9, "Signal",
-                   bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 9, _evalSigLabel,
-                   bgcolor=sqBgV, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
-        table.merge_cells(evalDash, 1, 9, 3, 9)
-
-        // ── Row 10: Next session composite probability ─────────────────────────
-        table.cell(evalDash, 0, 10, "Prob",
-                   bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 10, str.tostring(compositeProb, "#.1") + "%",
-                   bgcolor=compBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-        table.merge_cells(evalDash, 1, 10, 3, 10)
-
-        // ── Row 11: Next session confluence score ──────────────────────────────
-        table.cell(evalDash, 0, 11, "Confluence",
-                   bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 11, str.tostring(confScore) + " / 5",
-                   bgcolor=confBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-        table.merge_cells(evalDash, 1, 11, 3, 11)
-
-        // ── Row 12: Date Range header (shifted from row 8) ────────────────────
+        // ── Row 8: Date Range header ──────────────────────────────────────────
         string _drHdrV = i_statsDateRange ? str.format_time(i_drStart, "MMM yyyy", "UTC") + " – " + str.format_time(i_drEnd, "MMM yyyy", "UTC") : "DATE RANGE  (off)"
         color  _drBgV  = i_statsDateRange ? color.new(#1a3a5c, 5) : _evOffBg
-        table.cell(evalDash, 0, 12, _drHdrV,
+        table.cell(evalDash, 0, 8, _drHdrV,
                    bgcolor=_drBgV, text_color=color.new(color.white, 15), text_size=_sSzV, text_halign=text.align_center)
-        table.merge_cells(evalDash, 0, 12, 3, 12)
+        table.merge_cells(evalDash, 0, 8, 3, 8)
 
-        // ── Rows 13-15: Date Range performance (shifted from rows 9-11) ────────
+        // ── Rows 9-11: Date Range performance ────────────────────────────────
         int   evDrTotW = drBullW  + drBearW
         int   evDrTotL = drBullL  + drBearL
         int   evDrTot  = evDrTotW + evDrTotL
@@ -1235,20 +1214,20 @@ if barstate.islast
         color evNetBgV = evDrNet >= 0.0 ? color.new(color.green, 0) : color.new(color.red, 0)
 
         if i_statsDateRange
-            table.cell(evalDash, 0, 13, "Overall",              bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 1, 13, f_wl(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 2, 13, f_wr(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 3, 13, str.tostring(evDrTot) + " sig", bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 0, 14, "Price Move",           bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 1, 14, f_fmtAmt(evDrWin),     bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 2, 14, f_fmtAmt(evDrLos),     bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 3, 14, f_fmtAmt(evDrNet),     bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 0, 15, "Avg Move",             bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 1, 15, f_fmtAvg(evDrWin, evDrTotW), bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 2, 15, f_fmtAvg(evDrLos, evDrTotL), bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 3, 15, f_fmtAvg(evDrNet, evDrTot),  bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 0, 9,  "Overall",              bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 1, 9,  f_wl(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 2, 9,  f_wr(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 3, 9,  str.tostring(evDrTot) + " sig", bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 0, 10, "Price Move",           bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 1, 10, f_fmtAmt(evDrWin),     bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 2, 10, f_fmtAmt(evDrLos),     bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 3, 10, f_fmtAmt(evDrNet),     bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 0, 11, "Avg Move",             bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 1, 11, f_fmtAvg(evDrWin, evDrTotW), bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 2, 11, f_fmtAvg(evDrLos, evDrTotL), bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 3, 11, f_fmtAvg(evDrNet, evDrTot),  bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         else
-            for r = 13 to 15
+            for r = 9 to 11
                 table.cell(evalDash, 0, r, "", bgcolor=_evOffBg, text_color=txtFullV, text_size=_sSzV)
                 table.merge_cells(evalDash, 0, r, 3, r)
 
