@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v4.2", shorttitle="MRB v4.2", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v4.3", shorttitle="MRB v4.3", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -577,9 +577,6 @@ plotshape(i_showHistory and curState == 1, title="State: BEAR",
 // Session-start bias markers — fire when the new session opens with a HIGH signal.
 // Uses current bar's biasDir/isSignalHigh so the exhaustion filter, MACD filter, and
 // all live gates apply at the moment of the session open. Stats measure this same event.
-// NOTE: The carrot (prior-close signal) and triangle (current-open signal) may occasionally
-// show different directions because the Markov lookback window shifts by one bar between
-// Friday close and Monday open — this is correct model behaviour, not a bug.
 // plotshape size must be const in v6; one call per size, gated by i_markerSize
 plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.tiny)
 plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.small)
@@ -590,6 +587,20 @@ plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.small)
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
+
+// Retroactive next-session arrows — fire when a HIGH-signal session opens, drawing
+// an arrow on the PRIOR chart bar (offset=-1). Every HIGH triangle now has a preceding
+// session arrow, including solo signals and the first signal in any streak.
+// Arrow placed on the opposite side from the session triangle (above for bull, below for
+// bear) so both markers coexist cleanly on consecutive-signal bars.
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session Bull Arrow (Tiny)",   style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.tiny,   offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Next Session Bull Arrow (Small)",  style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.small,  offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Next Session Bull Arrow (Normal)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.normal, offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Next Session Bull Arrow (Large)",  style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.large,  offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session Bear Arrow (Tiny)",   style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.tiny,   offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Next Session Bear Arrow (Small)",  style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.small,  offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Next Session Bear Arrow (Normal)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.normal, offset=-1)
+plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Next Session Bear Arrow (Large)",  style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.large,  offset=-1)
 
 // Next-session carrot: persistent vars capture the HIGH signal at every
 // confirmed bar close. The carrot then displays on barstate.islast (the most
@@ -967,7 +978,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v4.2]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v4.3]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1148,7 +1159,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v4.2]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v4.3]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
