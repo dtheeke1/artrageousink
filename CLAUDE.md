@@ -9,7 +9,8 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v4.0** — next must be v4.1
+- Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
+- Current version: **v4.1** — next must be v4.2
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -139,3 +140,15 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         Triangle = model state at the OPEN of the current session (current bar data).
         Carrot = model signal from the CLOSE of the prior session (confirmed close data).
         They CAN show different directions when the market gaps — this is by design.
+- v4.1: Fixed carrot/triangle mismatch. Root cause: the session triangle fired at
+        isResUpdate (new bar OPEN) using biasDir/isSignalHigh from the current bar's
+        OPENING state, while the carrot fired based on the PRIOR bar's CONFIRMED CLOSE
+        state. Even with no price gap, the Markov lookback window shifts by one bar
+        between Friday close and Monday open — different denominators in the 5-bar
+        return calc — so the model can flip state without any gap. Fix: changed all
+        8 session triangle plotshape calls to use biasDir[1] and isSignalHigh[1]
+        (prior bar's confirmed values). Also updated performance tracking to use
+        biasDir[1]/isSignalHigh[1] so stats measure "when Friday's carrot fired,
+        did the next session go the predicted way?" — matching what the markers show.
+        Triangle, carrot, and stats now all use the SAME data source (prior bar's
+        confirmed signal) and are guaranteed to always agree.
