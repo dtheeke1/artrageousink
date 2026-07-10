@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v3.8** — next must be v3.9
+- Current version: **v3.9** — next must be v4.0
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -118,3 +118,12 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         exist, so it is visible in Replay mode. Visual change: carrot now appears at
         the START of a new session period (same bar as the session triangle, opposite
         side) rather than at the END of the prior period.
+- v3.9: Fixed next-session carrot showing wrong signal. Root cause: carrot logic
+        fired on `barstate.islast` (every tick of the open bar), using request.security
+        data from the prior confirmed bar — so the carrot predicted "next session" using
+        stale data that didn't match what the model would compute after the current bar
+        closed. When replay advanced to the next bar, the triangle showed a DIFFERENT
+        signal than the carrot had shown. Fix: gated carrot on `barstate.isconfirmed and
+        barstate.islast` — fires exactly once when the current bar closes. Signal is
+        computed from the just-confirmed close data, guaranteed to match the triangle
+        that will appear when the next bar opens.

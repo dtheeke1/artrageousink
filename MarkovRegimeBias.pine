@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v3.8", shorttitle="MRB v3.8", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v3.9", shorttitle="MRB v3.9", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -583,14 +583,14 @@ plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
 
-// Next-session carrot: label placed at bar_index+1 from the last visible bar.
-// Fires on barstate.islast (not isconfirmed) so it only lives on the most recent bar
-// and always previews ONE slot ahead — the upcoming session. In replay, this means
-// the carrot moves forward as you advance: at bar N-1 it sits at bar N's slot; at
-// bar N it sits at bar N+1's slot. No historical deletion artifacts.
+// Next-session carrot: label placed at bar_index+1 from the last confirmed bar.
+// Fires only when barstate.isconfirmed AND barstate.islast — i.e., exactly at
+// the moment the current bar closes. This ensures the signal is based on the
+// just-confirmed close data (not the open bar's mid-tick state), so the carrot
+// always matches what the triangle will show on the next bar.
 var label _carrot = na
 
-if i_nextSessionMode and barstate.islast
+if i_nextSessionMode and barstate.isconfirmed and barstate.islast
     label.delete(_carrot)
     _carrot := na
     if isSignalHigh and biasDir != 0
@@ -954,7 +954,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.8]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.9]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1135,7 +1135,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.8]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.9]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
