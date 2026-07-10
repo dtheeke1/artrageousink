@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v4.3", shorttitle="MRB v4.3", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v4.4", shorttitle="MRB v4.4", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -190,6 +190,19 @@ var int lastResBarIdx = na
 bool isResUpdate = not na(resBarIdx) and (na(lastResBarIdx) or resBarIdx != lastResBarIdx)
 if isResUpdate
     lastResBarIdx := resBarIdx
+
+// ============================================================================
+// SECTION 2B — LOOKAHEAD-ON PARALLEL REQUESTS (Friday-close signal only)
+// ============================================================================
+// These use lookahead_on so that at barstate.isconfirmed (Friday's close) the
+// completed weekly bar's data is immediately accessible — no waiting until Monday.
+// Used ONLY for the next-session permanent label; the Markov chain, performance
+// tracking, and all dashboards continue to use the lookahead_off path above.
+int resStateLO  = request.security(syminfo.tickerid, _res, f_stateAtRes(), lookahead=barmerge.lookahead_on)
+int resBarIdxLO = request.security(syminfo.tickerid, _res, bar_index,      lookahead=barmerge.lookahead_on)
+int stateD_LO   = request.security(syminfo.tickerid, "D",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
+int stateW_LO   = request.security(syminfo.tickerid, "W",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
+int stateM_LO   = request.security(syminfo.tickerid, "M",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
 
 // ============================================================================
 // SECTION 3 — FIRST-ORDER TRANSITION MATRIX (9-cell)
@@ -461,6 +474,84 @@ bool isSignalMedium  = biasDir != 0 and not isSignalHigh and confScore >= i_conf
 string sigQuality    = isSignalHigh ? "HIGH" : isSignalMedium ? "MEDIUM" : "LOW"
 
 // ============================================================================
+// SECTION 9C — LOOKAHEAD-ON SIGNAL COMPUTATION (Friday-close preview)
+// ============================================================================
+// Recomputes the full 5-layer signal using lookahead_on state data. At
+// barstate.isconfirmed (Friday's close) resStateLO holds the completed weekly
+// bar's confirmed state — same prediction the main signal will show Monday morning,
+// but available Friday evening. transCount lags by one transition (week N's
+// N-1→N pair not yet added) which introduces negligible imprecision.
+
+// Layer 1 — first-order probs from LO state
+[pBullLO, pBearLO, pSideLO] = f_probRow(resStateLO, transCount)
+int biasDirLO = pBullLO >= i_biasThresh ? 1 : pBearLO >= i_biasThresh ? -1 : 0
+
+// Layer 2 — second-order from (prior confirmed state, LO current state) pair
+float p2BullLO = 33.33
+float p2BearLO = 33.33
+float p2SideLO = 33.33
+int   _bufLenLO = array.size(stateBuffer)
+if i_useSecondOrder and _bufLenLO >= 1
+    int _prevLO  = array.get(stateBuffer, _bufLenLO - 1)
+    int _pairLO  = _prevLO * 3 + resStateLO
+    float _s2BLO  = array.get(trans2, _pairLO * 3 + 0)
+    float _s2BrLO = array.get(trans2, _pairLO * 3 + 1)
+    float _s2SLO  = array.get(trans2, _pairLO * 3 + 2)
+    float _s2Sum  = _s2BLO + _s2BrLO + _s2SLO
+    if _s2Sum > 0.0
+        p2BullLO := _s2BLO  / _s2Sum * 100.0
+        p2BearLO := _s2BrLO / _s2Sum * 100.0
+        p2SideLO := _s2SLO  / _s2Sum * 100.0
+
+// Layer 4 — MTF using lookahead-on states
+int _bDirD_LO = stateD_LO == 0 ? 1 : stateD_LO == 1 ? -1 : 0
+int _bDirW_LO = stateW_LO == 0 ? 1 : stateW_LO == 1 ? -1 : 0
+int _bDirM_LO = stateM_LO == 0 ? 1 : stateM_LO == 1 ? -1 : 0
+int mtfScoreLO = 0
+if i_useMtf
+    if _bDirD_LO == biasDirLO
+        mtfScoreLO += 1
+    if _bDirW_LO == biasDirLO
+        mtfScoreLO += 1
+    if _bDirM_LO == biasDirLO
+        mtfScoreLO += 1
+float mtfProbLO = i_useMtf ? 33.33 + float(mtfScoreLO) * 11.11 : 50.0
+
+// Layer 5 — entropy from LO probs
+float _e1LO = math.max(pBullLO / 100.0, 0.0001)
+float _e2LO = math.max(pBearLO / 100.0, 0.0001)
+float _e3LO = math.max(pSideLO / 100.0, 0.0001)
+float entropyConfLO = (1.0 - math.min(-(_e1LO*math.log(_e1LO)+_e2LO*math.log(_e2LO)+_e3LO*math.log(_e3LO)) / maxEntropy, 1.0)) * 100.0
+
+// Composite probability (LO) — no duration boost; regimeDuration is one bar stale
+float _primLO = biasDirLO ==  1 ? pBullLO : biasDirLO == -1 ? pBearLO : pSideLO
+float _secLO  = biasDirLO ==  1 ? p2BullLO : biasDirLO == -1 ? p2BearLO : p2SideLO
+float _vixLO  = biasDirLO ==  1 ? vixBullScore : biasDirLO == -1 ? vixBearScore : 50.0
+float compositeProbLO = w1n * _primLO +
+                        w2n * (i_useSecondOrder ? _secLO : _primLO) +
+                        w3n * _vixLO +
+                        w4n * mtfProbLO +
+                        w5n * (i_useEntropy ? entropyConfLO : 50.0)
+
+// Confluence (LO)
+int confScoreLO = 0
+if _primLO >= i_biasThresh
+    confScoreLO += 1
+if i_useSecondOrder and _secLO >= i_biasThresh
+    confScoreLO += 1
+if i_useVix
+    if (biasDirLO == 1 and not isHighVol) or (biasDirLO == -1 and isHighVol)
+        confScoreLO += 1
+if i_useMtf and mtfScoreLO >= 2
+    confScoreLO += 1
+if i_useEntropy and entropyConfLO > 55.0
+    confScoreLO += 1
+
+// Full HIGH gate — same thresholds as main signal; exhaustion/MACD use live chart data
+bool notExhaustedLO = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
+bool isSignalHighLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAligned and notExhaustedLO
+
+// ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
 // ============================================================================
 // Normal mode  : win = same-bar open→close in the signal direction.
@@ -574,55 +665,28 @@ plotshape(i_showHistory and curState == 1, title="State: BEAR",
           style=shape.triangledown, location=location.abovebar,
           color=i_colorBear, size=size.tiny)
 
-// Session-start bias markers — fire when the new session opens with a HIGH signal.
-// Uses current bar's biasDir/isSignalHigh so the exhaustion filter, MACD filter, and
-// all live gates apply at the moment of the session open. Stats measure this same event.
-// plotshape size must be const in v6; one call per size, gated by i_markerSize
-plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.tiny)
-plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.small)
-plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.normal)
-plotshape(i_showDayBias and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BULLISH (HIGH)", style=shape.triangleup,   location=location.belowbar,  color=i_colorBull, size=size.large)
+// Next-session permanent triangle — ONE marker per HIGH signal session.
+// Fires at Friday's close (barstate.isconfirmed) using the lookahead_on signal
+// that reflects the completed weekly bar's data. Placed at bar_index+1
+// (where the next weekly candle will form) and stays there permanently — visible
+// Friday evening, still there when Monday's candle opens, present forever in history.
+// Uses label.new so size can be dynamic (single call, no per-size duplication).
+// Gated by i_showDayBias. i_nextSessionMode no longer used for plotshapes.
+var int  _nsBarIdxSeen = na
+var bool _nsBarPending = false
+bool _isNewNSBar = not na(resBarIdxLO) and (na(_nsBarIdxSeen) or resBarIdxLO != _nsBarIdxSeen)
+if _isNewNSBar
+    _nsBarIdxSeen := resBarIdxLO
+    _nsBarPending := true
 
-plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.tiny)
-plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.small)
-plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
-plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
-
-// Retroactive next-session arrows — fire when a HIGH-signal session opens, drawing
-// an arrow on the PRIOR chart bar (offset=-1). Every HIGH triangle now has a preceding
-// session arrow, including solo signals and the first signal in any streak.
-// Arrow placed on the opposite side from the session triangle (above for bull, below for
-// bear) so both markers coexist cleanly on consecutive-signal bars.
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session Bull Arrow (Tiny)",   style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.tiny,   offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Next Session Bull Arrow (Small)",  style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.small,  offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Next Session Bull Arrow (Normal)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.normal, offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Next Session Bull Arrow (Large)",  style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.large,  offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session Bear Arrow (Tiny)",   style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.tiny,   offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Next Session Bear Arrow (Small)",  style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.small,  offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Next Session Bear Arrow (Normal)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.normal, offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Next Session Bear Arrow (Large)",  style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.large,  offset=-1)
-
-// Next-session carrot: persistent vars capture the HIGH signal at every
-// confirmed bar close. The carrot then displays on barstate.islast (the most
-// recent bar in live OR replay) using those saved values, so it is always
-// visible — even when the replay's current bar has not yet been confirmed.
-// Signal is always from a closed bar, never from open-bar intrabar noise.
-var bool _carrotBull = false
-var bool _carrotBear = false
-var label _carrot = na
-
-if barstate.isconfirmed
-    _carrotBull := isSignalHigh and biasDir == 1
-    _carrotBear := isSignalHigh and biasDir == -1
-
-if i_nextSessionMode and barstate.islast
-    label.delete(_carrot)
-    _carrot := na
-    string _cSz = i_markerSize == "Tiny" ? size.tiny : i_markerSize == "Small" ? size.small : i_markerSize == "Large" ? size.large : size.normal
-    if _carrotBull
-        _carrot := label.new(x=bar_index + 1, y=high, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_cSz, style=label.style_arrowup)
-    else if _carrotBear
-        _carrot := label.new(x=bar_index + 1, y=low,  text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_cSz, style=label.style_arrowdown)
+if barstate.isconfirmed and _nsBarPending
+    _nsBarPending := false
+    if i_showDayBias and isSignalHighLO and biasDirLO != 0
+        string _lSz = i_markerSize == "Tiny" ? size.tiny : i_markerSize == "Small" ? size.small : i_markerSize == "Large" ? size.large : size.normal
+        if biasDirLO == 1
+            label.new(x=bar_index + 1, y=low,  text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_lSz, style=label.style_triangleup)
+        else
+            label.new(x=bar_index + 1, y=high, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_lSz, style=label.style_triangledown)
 
 // ============================================================================
 // SECTION 13B — LAST-N STATS + DISPLAY HELPERS
@@ -978,7 +1042,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v4.3]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v4.4]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1159,7 +1223,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v4.3]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v4.4]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
