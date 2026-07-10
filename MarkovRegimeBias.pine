@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v3.5", shorttitle="MRB v3.5", overlay=true, max_bars_back=5000)
+indicator("Markov Regime Bias  v3.6", shorttitle="MRB v3.6", overlay=true, max_bars_back=5000)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -583,22 +583,21 @@ plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.normal)
 plotshape(i_showDayBias and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Session Bias: BEARISH (HIGH)", style=shape.triangledown, location=location.abovebar, color=i_colorBear, size=size.large)
 
-// Carrot arrows preview the upcoming session — drawn ONE BAR TO THE LEFT of the signal bar.
-// Condition fires on bar N (same as the session triangle, no isconfirmed gate) when
-// isResUpdate + isSignalHigh are true; offset=-1 draws the shape on bar N-1.
-// Result: carrot on bar N-1 appears IMMEDIATELY as bar N opens/is live — no waiting for
-// bar N to confirm. In replay mode, bar N exists at the replay position so offset=-1 on bar N
-// draws on bar N-1 — always visible. Exhaustion flags are snapshot-gated (AtOpen) so no
-// intraweek flicker risk from the exhaustion filter. Signal stability matches the triangle.
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.tiny,   offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.small,  offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.normal, offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.large,  offset=-1)
+// Carrot arrows preview the upcoming session — appear ON the bar that just closed.
+// Fires at barstate.isconfirmed (bar N-1 Friday close), offset=0 → draws on bar N-1.
+// Triangle fires at isResUpdate (bar N Monday open) → draws on bar N.
+// Net: carrot on N-1 (Friday night), triangle on N (Monday) — right position, right timing.
+// No isResUpdate dependency means no waiting for the next bar to exist.
+// In replay mode, carrot appears as soon as bar N-1 confirms — before bar N is added.
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir ==  1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.tiny,   offset=0)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir ==  1 and isSignalHigh and i_markerSize == "Small",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.small,  offset=0)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir ==  1 and isSignalHigh and i_markerSize == "Normal", title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.normal, offset=0)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir ==  1 and isSignalHigh and i_markerSize == "Large",  title="Next Session: BULLISH (HIGH)", style=shape.arrowup,   location=location.abovebar, color=i_colorBull, size=size.large,  offset=0)
 
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.tiny,   offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.small,  offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.normal, offset=-1)
-plotshape(i_nextSessionMode and isResUpdate and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.large,  offset=-1)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir == -1 and isSignalHigh and i_markerSize == "Tiny",   title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.tiny,   offset=0)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir == -1 and isSignalHigh and i_markerSize == "Small",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.small,  offset=0)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir == -1 and isSignalHigh and i_markerSize == "Normal", title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.normal, offset=0)
+plotshape(i_nextSessionMode and barstate.isconfirmed and biasDir == -1 and isSignalHigh and i_markerSize == "Large",  title="Next Session: BEARISH (HIGH)", style=shape.arrowdown, location=location.belowbar, color=i_colorBear, size=size.large,  offset=0)
 
 // ============================================================================
 // SECTION 13B — LAST-N STATS + DISPLAY HELPERS
@@ -954,7 +953,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.5]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v3.6]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1129,7 +1128,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.5]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v3.6]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
