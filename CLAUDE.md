@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v3.2** — next must be v3.3
+- Current version: **v3.4** — next must be v3.5
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
