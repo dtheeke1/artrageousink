@@ -9,7 +9,7 @@ Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
-- Current version: **v3.9** — next must be v4.0
+- Current version: **v4.0** — next must be v4.1
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -127,3 +127,15 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         barstate.islast` — fires exactly once when the current bar closes. Signal is
         computed from the just-confirmed close data, guaranteed to match the triangle
         that will appear when the next bar opens.
+- v4.0: Fixed next-session carrot missing in replay. Root cause: v3.9's
+        `barstate.isconfirmed and barstate.islast` both require TRUE simultaneously;
+        in TradingView replay, when paused ON a bar, that bar is treated as "open"
+        (isconfirmed=false), so the carrot never fired. Fix: introduced persistent
+        `var bool _carrotBull/_carrotBear` that update only on barstate.isconfirmed
+        (captured at every real bar close). The carrot then displays on barstate.islast
+        (any tick of the most-recent bar in live or replay) using those saved values.
+        Signal always reflects the last closed bar; carrot is always visible.
+        NOTE: The session TRIANGLE and the CARROT are intentionally different:
+        Triangle = model state at the OPEN of the current session (current bar data).
+        Carrot = model signal from the CLOSE of the prior session (confirmed close data).
+        They CAN show different directions when the market gaps — this is by design.
