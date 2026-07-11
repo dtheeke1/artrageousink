@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v4.9", shorttitle="MRB v4.9", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.0", shorttitle="MRB v5.0", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -523,11 +523,14 @@ float _e2LO = math.max(pBearLO / 100.0, 0.0001)
 float _e3LO = math.max(pSideLO / 100.0, 0.0001)
 float entropyConfLO = (1.0 - math.min(-(_e1LO*math.log(_e1LO)+_e2LO*math.log(_e2LO)+_e3LO*math.log(_e3LO)) / maxEntropy, 1.0)) * 100.0
 
-// Composite probability (LO) — no duration boost; regimeDuration is one bar stale
+// Composite probability (LO) — includes duration boost matching the main signal
 float _primLO = biasDirLO ==  1 ? pBullLO : biasDirLO == -1 ? pBearLO : pSideLO
 float _secLO  = biasDirLO ==  1 ? p2BullLO : biasDirLO == -1 ? p2BearLO : p2SideLO
 float _vixLO  = biasDirLO ==  1 ? vixBullScore : biasDirLO == -1 ? vixBearScore : 50.0
-float compositeProbLO = w1n * _primLO + w2n * (i_useSecondOrder ? _secLO : _primLO) + w3n * _vixLO + w4n * mtfProbLO + w5n * (i_useEntropy ? entropyConfLO : 50.0)
+// LO duration: if current bar continues the same regime as lastState, streak is regimeDuration+1
+int   _durationLO      = (not na(lastState) and resStateLO == lastState) ? regimeDuration + 1 : 1
+float _durationBoostLO = i_useDuration ? math.min(float(_durationLO) * 0.3, 4.0) : 0.0
+float compositeProbLO  = w1n * _primLO + w2n * (i_useSecondOrder ? _secLO : _primLO) + w3n * _vixLO + w4n * mtfProbLO + w5n * (i_useEntropy ? entropyConfLO : 50.0) + (biasDirLO != 0 ? _durationBoostLO : 0.0)
 
 // Confluence (LO)
 int confScoreLO = 0
@@ -675,9 +678,9 @@ if isResUpdate and barstate.isconfirmed and isSignalHigh and biasDir != 0
     _prevLbl := na
     if i_showDayBias
         if biasDir == 1
-            label.new(x=bar_index + 1, y=low,  text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_lSzV, style=label.style_triangleup)
+            label.new(x=bar_index + 1, y=close, text="", xloc=xloc.bar_index, yloc=yloc.belowbar, color=i_colorBull, size=_lSzV, style=label.style_triangleup)
         else
-            label.new(x=bar_index + 1, y=high, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
+            label.new(x=bar_index + 1, y=close, text="", xloc=xloc.bar_index, yloc=yloc.abovebar, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
 else if isResUpdate and barstate.isconfirmed
     // Resolution bar closed without a HIGH signal — remove any live preview
     label.delete(_prevLbl)
@@ -686,7 +689,7 @@ else if barstate.islast
     label.delete(_prevLbl)
     _prevLbl := na
     if i_showDayBias and isSignalHighLO and biasDirLO != 0
-        _prevLbl := biasDirLO == 1 ? label.new(x=bar_index + 1, y=low,  text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_lSzV, style=label.style_triangleup) : label.new(x=bar_index + 1, y=high, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
+        _prevLbl := biasDirLO == 1 ? label.new(x=bar_index + 1, y=close, text="", xloc=xloc.bar_index, yloc=yloc.belowbar, color=i_colorBull, size=_lSzV, style=label.style_triangleup) : label.new(x=bar_index + 1, y=close, text="", xloc=xloc.bar_index, yloc=yloc.abovebar, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
 
 // ============================================================================
 // SECTION 13B — LAST-N STATS + DISPLAY HELPERS
@@ -1042,7 +1045,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v4.9]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.0]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1223,7 +1226,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v4.9]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.0]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
