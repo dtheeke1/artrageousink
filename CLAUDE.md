@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.9** — next must be v5.10
+- Current version: **v5.10** — next must be v5.11
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -249,3 +249,19 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         date showed Sunday for holiday-shortened weeks (Thursday close + 3 days = Sunday).
         Fix: `9 - dayofweek(time_close, "UTC")` computes exact days to next Monday for
         any close day (Friday dow=6 → 3 days, Thursday dow=5 → 4 days).
+        BUG REMAINED: the two-cycle staging (Cycle 1 at isConfirmedResBar, Cycle 2 at
+        isResUpdate) collapses for ALL historical bars because barstate.isconfirmed=true
+        always, making both cycles fire on the same tick. Additionally, biasDirLO during
+        historical processing uses a different Markov pair than during replay: historical
+        bars push the current bar's confirmed state (N State) to stateBuffer, while replay
+        unconfirmed bars push the previous confirmed state (N-2 State) — different Layer 2
+        pairs produce different bias directions.
+- v5.10: Replaced broken two-cycle staging (Section 9D) with direct prior-session LO
+        recompute. On bar N, the CURRENT SESSION signal is recomputed using:
+          resStateLO[1]              → bar N-1's LO state (matches replay resStateLO)
+          stateBuffer[size-3]        → bar N-2 State (matches stateBuffer[-1] in replay)
+          Layer 2 pair = (N-2) × (N-1 LO) → exact pair NEXT SESSION used during bar N-1
+        All non-Markov layers use [1] (prior bar) values: VIX, MTF, MACD, exhaustion,
+        duration. This eliminates the CURRENT SESSION = NEXT SESSION identity bug and
+        shows the correct prior-session prediction regardless of historical vs replay mode.
+        Removed all _pending* and _cs* var variables; removed isConfirmedResBar dependency.
