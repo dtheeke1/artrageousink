@@ -24,7 +24,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.3** — next must be v5.4
+- Current version: **v5.4** — next must be v5.5
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -177,3 +177,23 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         _savedConfScoreLO, _savedIsHighLO, _savedIsMediumLO) in Section 13C.
         Updated only on barstate.isconfirmed. evalDash rows 8-11 now display
         the saved values unconditionally, removing the isconfirmed/else branch.
+- v5.4: Two fixes. (1) NEXT SESSION Signal not showing HIGH even when Composite
+        and Confluence meet thresholds: root cause was isSignalHighLO using
+        `macdAligned` (which checks main biasDir) instead of a proper
+        `macdAlignedLO` that checks biasDirLO. When current session is bearish
+        but next session flips bullish and MACD is bullish, `macdAligned` was
+        false → LO HIGH suppressed incorrectly. Fixed: added `macdAlignedLO`
+        variable; isSignalHighLO now uses it. Also added isSignalHighRawLO and
+        enhanced sigQualityLO to emit "MEDIUM  (ext)" / "MEDIUM  (MACD)" when
+        a filter is the reason for not reaching HIGH (same annotation pattern as
+        CURRENT SESSION). (2) NEXT SESSION and CURRENT SESSION showing identical
+        data on many tickers: root cause was v5.3's saved-value approach
+        snapshotting at barstate.isconfirmed (Friday's close), where resStateLO
+        == resState (both reference the same just-closed weekly bar) → identical
+        signals. Fix: removed Section 13C saved variables entirely; evalDash rows
+        8-11 now use live LO variables directly. Mid-week on an open weekly bar,
+        biasDirLO (lookahead_on) sees the in-progress current week while biasDir
+        (lookahead_off) sees last week → CURRENT and NEXT SESSION show genuinely
+        different readings. At Friday's confirmed close they naturally match
+        (correct behavior — same just-closed bar). Also fixes Replay display
+        without needing any isconfirmed gate.
