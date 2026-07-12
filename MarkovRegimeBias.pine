@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.4", shorttitle="MRB v5.4", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.5", shorttitle="MRB v5.5", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -190,6 +190,17 @@ var int lastResBarIdx = na
 bool isResUpdate = not na(resBarIdx) and (na(lastResBarIdx) or resBarIdx != lastResBarIdx)
 if isResUpdate
     lastResBarIdx := resBarIdx
+
+// On same-resolution charts (weekly chart + weekly resolution), isResUpdate fires at bar OPEN
+// (bar_index changes) while barstate.isconfirmed fires at bar CLOSE — they never coincide.
+// _pendingResBar bridges the gap so isConfirmedResBar fires correctly at bar close on all
+// chart resolutions, including when chart timeframe matches the regime resolution.
+var bool _pendingResBar = false
+if isResUpdate
+    _pendingResBar := true
+bool isConfirmedResBar = _pendingResBar and barstate.isconfirmed
+if isConfirmedResBar
+    _pendingResBar := false
 
 // ============================================================================
 // SECTION 2B — LOOKAHEAD-ON PARALLEL REQUESTS (Friday-close signal only)
@@ -555,6 +566,30 @@ bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >=
 string sigQualityLO  = isSignalHighLO ? "HIGH" : isSignalMediumLO and isSignalHighRawLO and not notExhaustedLO ? "MEDIUM  (ext)" : isSignalMediumLO and isSignalHighRawLO and not macdAlignedLO ? "MEDIUM  (MACD)" : isSignalMediumLO ? "MEDIUM" : "LOW"
 
 // ============================================================================
+// SECTION 9D — CONFIRMED CURRENT-SESSION SNAPSHOT
+// ============================================================================
+// Snapshots the confirmed signal at each resolution bar close. evalDash CURRENT SESSION
+// uses these values so it always matches the session triangle (same data source, same bar).
+var int   _csBiasDir      = 0
+var bool  _csIsSignalHigh = false
+var bool  _csIsSignalMed  = false
+var bool  _csIsSignalHiRa = false
+var bool  _csNotExhausted = true
+var bool  _csMacdAligned  = true
+var float _csCompProb     = 50.0
+var int   _csConfScore    = 0
+
+if isConfirmedResBar
+    _csBiasDir      := biasDir
+    _csIsSignalHigh := isSignalHigh
+    _csIsSignalMed  := isSignalMedium
+    _csIsSignalHiRa := isSignalHighRaw
+    _csNotExhausted := notExhausted
+    _csMacdAligned  := macdAligned
+    _csCompProb     := compositeProb
+    _csConfScore    := confScore
+
+// ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
 // ============================================================================
 // Normal mode  : win = same-bar open→close in the signal direction.
@@ -593,7 +628,7 @@ var float drBearLAmt = 0.0
 // Performance tracking: when a resolution bar closes HIGH, did it close in the signal direction?
 // Uses current bar's biasDir/isSignalHigh — same gate as the session label (isResUpdate +
 // barstate.isconfirmed) — so stats and chart markers always agree. No plotshapes used in v4.9.
-if isResUpdate and isSignalHigh and biasDir != 0 and barstate.isconfirmed
+if isConfirmedResBar and isSignalHigh and biasDir != 0
     bool _gapWin     = (biasDir == 1 and open > close[1]) or (biasDir == -1 and open < close[1])
     bool _sessionWin = (biasDir == 1 and close >= open)   or (biasDir == -1 and close <= open)
     bool isWin       = i_gapMode ? _gapWin : _sessionWin
@@ -681,7 +716,7 @@ string    _lSzV     = i_markerSize == "Tiny" ? size.tiny : i_markerSize == "Smal
 // when that bar is a future/non-existent bar. yloc.price with explicit offset is reliable.
 float _mrkOffset = not na(exhaustAtr) and exhaustAtr > 0.0 ? exhaustAtr * 2.0 : 0.0
 
-if isResUpdate and barstate.isconfirmed and isSignalHigh and biasDir != 0
+if isConfirmedResBar and isSignalHigh and biasDir != 0
     label.delete(_prevLbl)
     _prevLbl := na
     if i_showDayBias
@@ -689,7 +724,7 @@ if isResUpdate and barstate.isconfirmed and isSignalHigh and biasDir != 0
             label.new(x=bar_index + 1, y=low - _mrkOffset, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_lSzV, style=label.style_triangleup)
         else
             label.new(x=bar_index + 1, y=high + _mrkOffset, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
-else if isResUpdate and barstate.isconfirmed
+else if isConfirmedResBar
     // Resolution bar closed without a HIGH signal — remove any live preview
     label.delete(_prevLbl)
     _prevLbl := na
@@ -1053,7 +1088,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.4]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.5]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1234,7 +1269,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.4]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.5]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1246,37 +1281,41 @@ if barstate.islast
                    bgcolor=hdrBgV, text_color=color.new(color.white, 25), text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 1, 3, 1)
 
+        // ── Rows 2-5: Current session signal — uses confirmed snapshot (_cs*) so it always
+        // matches the session triangle on this bar (both derived from the prior confirmed close).
+        string _csBiasLblV = _csBiasDir == 1 ? "▲  BULLISH" : _csBiasDir == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+        color  _csBiasBgV  = _csBiasDir == 1 ? color.new(i_colorBull, 0) : _csBiasDir == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
+        string _csEvalSig  = _csIsSignalHigh ? "HIGH" : _csIsSignalMed and _csIsSignalHiRa and not _csNotExhausted ? "MEDIUM  (ext)" : _csIsSignalMed and _csIsSignalHiRa and not _csMacdAligned ? "MEDIUM  (MACD)" : _csIsSignalMed ? "MEDIUM" : "LOW"
+        color  _csSqBgV    = _csIsSignalHigh ? color.new(i_colorBull, 0) : _csIsSignalMed ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _csCompBgV  = _csCompProb >= i_compThreshH ? color.new(#005f73, 0) : _csCompProb >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _csConfBgV  = _csConfScore >= i_confThreshH ? color.new(#005f73, 0) : _csConfScore >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+
         // ── Row 2: Bias Direction ──────────────────────────────────────────────
-        color biasBgV = biasDir == 1 ? color.new(i_colorBull, 0) : biasDir == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
         table.cell(evalDash, 0, 2, "Bias",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 2, biasLabel,
-                   bgcolor=biasBgV, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
+        table.cell(evalDash, 1, 2, _csBiasLblV,
+                   bgcolor=_csBiasBgV, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 2, 3, 2)
 
         // ── Row 3: Signal Quality ──────────────────────────────────────────────
-        string _evalSigLabel = isSignalHigh ? "HIGH" : isSignalMedium and isSignalHighRaw and not notExhausted ? "MEDIUM  (ext)" : isSignalMedium and isSignalHighRaw and not macdAligned ? "MEDIUM  (MACD)" : isSignalMedium ? "MEDIUM" : "LOW"
-        color sqBgV  = isSignalHigh ? color.new(i_colorBull, 0) : isSignalMedium ? color.new(color.orange, 0) : color.new(color.gray, 15)
         table.cell(evalDash, 0, 3, "Signal",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 3, _evalSigLabel,
-                   bgcolor=sqBgV, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
+        table.cell(evalDash, 1, 3, _csEvalSig,
+                   bgcolor=_csSqBgV, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 3, 3, 3)
 
         // ── Row 4: Composite Probability ──────────────────────────────────────
-        color compBgV = compositeProb >= i_compThreshH ? color.new(#005f73, 0) : compositeProb >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
         table.cell(evalDash, 0, 4, "Composite",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 4, str.tostring(compositeProb, "#.1") + "%",
-                   bgcolor=compBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+        table.cell(evalDash, 1, 4, str.tostring(_csCompProb, "#.1") + "%",
+                   bgcolor=_csCompBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 4, 3, 4)
 
         // ── Row 5: Confluence Score ────────────────────────────────────────────
-        color confBgV = confScore >= i_confThreshH ? color.new(#005f73, 0) : confScore >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
         table.cell(evalDash, 0, 5, "Confluence",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 5, str.tostring(confScore) + " / 5",
-                   bgcolor=confBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+        table.cell(evalDash, 1, 5, str.tostring(_csConfScore) + " / 5",
+                   bgcolor=_csConfBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 5, 3, 5)
 
         // ── Row 6: Next Session section header ────────────────────────────────
