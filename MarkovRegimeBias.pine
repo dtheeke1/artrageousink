@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.6", shorttitle="MRB v5.6", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.7", shorttitle="MRB v5.7", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -579,15 +579,19 @@ var bool  _csMacdAligned  = true
 var float _csCompProb     = 50.0
 var int   _csConfScore    = 0
 
+// Snapshot LO values (not main-signal values) so CURRENT SESSION on bar N+1 shows
+// exactly what NEXT SESSION was displaying during bar N. Main-signal biasDir diverges
+// from LO because the transition matrix update fires at isResUpdate (bar open), not at
+// bar close — so at isConfirmedResBar the matrix lags by one bar relative to resStateLO.
 if isConfirmedResBar
-    _csBiasDir      := biasDir
-    _csIsSignalHigh := isSignalHigh
-    _csIsSignalMed  := isSignalMedium
-    _csIsSignalHiRa := isSignalHighRaw
-    _csNotExhausted := notExhausted
-    _csMacdAligned  := macdAligned
-    _csCompProb     := compositeProb
-    _csConfScore    := confScore
+    _csBiasDir      := biasDirLO
+    _csIsSignalHigh := isSignalHighLO
+    _csIsSignalMed  := isSignalMediumLO
+    _csIsSignalHiRa := isSignalHighRawLO
+    _csNotExhausted := notExhaustedLO
+    _csMacdAligned  := macdAlignedLO
+    _csCompProb     := compositeProbLO
+    _csConfScore    := confScoreLO
 
 // ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
@@ -721,9 +725,9 @@ if isConfirmedResBar and isSignalHigh and biasDir != 0
     _prevLbl := na
     if i_showDayBias
         if biasDir == 1
-            label.new(x=bar_index, y=low - _mrkOffset, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_lSzV, style=label.style_triangleup)
+            label.new(x=bar_index + 1, y=low - _mrkOffset, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBull, size=_lSzV, style=label.style_triangleup)
         else
-            label.new(x=bar_index, y=high + _mrkOffset, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
+            label.new(x=bar_index + 1, y=high + _mrkOffset, text="", xloc=xloc.bar_index, yloc=yloc.price, color=i_colorBear, size=_lSzV, style=label.style_triangledown)
 else if isConfirmedResBar
     // Resolution bar closed without a HIGH signal — remove any live preview
     label.delete(_prevLbl)
@@ -1088,7 +1092,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.6]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.7]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1269,7 +1273,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.6]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.7]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 

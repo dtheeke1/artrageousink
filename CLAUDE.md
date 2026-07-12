@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.6** — next must be v5.7
+- Current version: **v5.7** — next must be v5.8
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -217,12 +217,17 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         chart. Fix: introduced `_cs*` snapshot variables (Section 9D) updated only
         at isConfirmedResBar; evalDash CURRENT SESSION rows 2-5 use `_cs*` (prior
         confirmed close) while NEXT SESSION uses live LO variables.
-- v5.6: Fixed confirmed session triangle visually indistinguishable from next-session
-        live preview. Root cause: both the confirmed triangle (isConfirmedResBar) and
-        the live preview (_prevLbl) were placed at `bar_index + 1`, making them overlap
-        at the same position — users saw one triangle at "next session" bar and expected
-        a separate triangle ON the current (closed) session bar. Fix: changed confirmed
-        triangle placement from `x=bar_index + 1` to `x=bar_index` (ON the closed bar).
-        Live preview (_prevLbl) stays at `x=bar_index + 1` so both are visually distinct:
-        triangle ON the closed bar = confirmed HIGH signal for that session; triangle at
-        N+1 = live preview of next session's predicted signal.
+- v5.6: REVERTED — triangle position change (bar_index+1 to bar_index) was wrong and
+        created visual confusion. The underlying CURRENT SESSION data mismatch bug was
+        not addressed. Do not use v5.6.
+- v5.7: Fixed CURRENT SESSION data mismatch. Root cause: Section 9D snapshotted
+        main-signal (lookahead_off) values at isConfirmedResBar, but NEXT SESSION
+        displays LO (lookahead_on) values. The two paths diverge because the transition
+        matrix update fires at isResUpdate (bar OPEN) — so at isConfirmedResBar the
+        matrix is one bar behind relative to resStateLO, causing biasDir to differ from
+        biasDirLO even on the same closed bar. Fix: changed all 8 _cs* snapshot
+        assignments to capture LO values (biasDirLO, isSignalHighLO, compositeProbLO,
+        confScoreLO, etc.) at isConfirmedResBar. CURRENT SESSION on bar N+1 now shows
+        exactly the prediction NEXT SESSION displayed during bar N — data transfers
+        correctly between sessions in both live and replay mode.
+        Also reverted v5.6 triangle position back to x=bar_index+1 (v5.5 behavior).
