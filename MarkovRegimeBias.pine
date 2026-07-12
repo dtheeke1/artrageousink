@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.7", shorttitle="MRB v5.7", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.8", shorttitle="MRB v5.8", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -566,10 +566,28 @@ bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >=
 string sigQualityLO  = isSignalHighLO ? "HIGH" : isSignalMediumLO and isSignalHighRawLO and not notExhaustedLO ? "MEDIUM  (ext)" : isSignalMediumLO and isSignalHighRawLO and not macdAlignedLO ? "MEDIUM  (MACD)" : isSignalMediumLO ? "MEDIUM" : "LOW"
 
 // ============================================================================
-// SECTION 9D — CONFIRMED CURRENT-SESSION SNAPSHOT
+// SECTION 9D — CONFIRMED CURRENT-SESSION SNAPSHOT (two-cycle)
 // ============================================================================
-// Snapshots the confirmed signal at each resolution bar close. evalDash CURRENT SESSION
-// uses these values so it always matches the session triangle (same data source, same bar).
+// Root cause of the identical-data bug: snapping _cs* AT isConfirmedResBar (bar N close)
+// means barstate.islast on weekends is still bar N, so _cs* = NEXT SESSION = identical.
+//
+// Fix: two-cycle staging.
+//   Cycle 1 (isConfirmedResBar): stage bar N's signal in _pending* vars.
+//   Cycle 2 (isResUpdate, bar N+1 open): promote _pending* → _cs* for display.
+// Result: during bar N, _cs* holds bar N-1's prediction (the "what was predicted FOR
+// this session" value), while NEXT SESSION shows live LO (the future prediction).
+// On weekends (after bar N closes, before bar N+1 opens) _cs* stays at bar N-1's
+// prediction — guaranteed different from NEXT SESSION which shows bar N's prediction.
+
+var int   _pendingBiasDir      = 0
+var bool  _pendingIsSignalHigh = false
+var bool  _pendingIsSignalMed  = false
+var bool  _pendingIsSignalHiRa = false
+var bool  _pendingNotExhausted = true
+var bool  _pendingMacdAligned  = true
+var float _pendingCompProb     = 50.0
+var int   _pendingConfScore    = 0
+
 var int   _csBiasDir      = 0
 var bool  _csIsSignalHigh = false
 var bool  _csIsSignalMed  = false
@@ -579,19 +597,28 @@ var bool  _csMacdAligned  = true
 var float _csCompProb     = 50.0
 var int   _csConfScore    = 0
 
-// Snapshot LO values (not main-signal values) so CURRENT SESSION on bar N+1 shows
-// exactly what NEXT SESSION was displaying during bar N. Main-signal biasDir diverges
-// from LO because the transition matrix update fires at isResUpdate (bar open), not at
-// bar close — so at isConfirmedResBar the matrix lags by one bar relative to resStateLO.
+// Cycle 1: at bar N close, stage bar N's signal (= prediction for bar N+1 session)
 if isConfirmedResBar
-    _csBiasDir      := biasDirLO
-    _csIsSignalHigh := isSignalHighLO
-    _csIsSignalMed  := isSignalMediumLO
-    _csIsSignalHiRa := isSignalHighRawLO
-    _csNotExhausted := notExhaustedLO
-    _csMacdAligned  := macdAlignedLO
-    _csCompProb     := compositeProbLO
-    _csConfScore    := confScoreLO
+    _pendingBiasDir      := biasDir
+    _pendingIsSignalHigh := isSignalHigh
+    _pendingIsSignalMed  := isSignalMedium
+    _pendingIsSignalHiRa := isSignalHighRaw
+    _pendingNotExhausted := notExhausted
+    _pendingMacdAligned  := macdAligned
+    _pendingCompProb     := compositeProb
+    _pendingConfScore    := confScore
+
+// Cycle 2: at bar N+1 open, promote staged values → CURRENT SESSION display
+// isResUpdate and isConfirmedResBar never fire on the same tick, so no ordering conflict.
+if isResUpdate
+    _csBiasDir      := _pendingBiasDir
+    _csIsSignalHigh := _pendingIsSignalHigh
+    _csIsSignalMed  := _pendingIsSignalMed
+    _csIsSignalHiRa := _pendingIsSignalHiRa
+    _csNotExhausted := _pendingNotExhausted
+    _csMacdAligned  := _pendingMacdAligned
+    _csCompProb     := _pendingCompProb
+    _csConfScore    := _pendingConfScore
 
 // ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
@@ -1092,7 +1119,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.7]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.8]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1273,7 +1300,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.7]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.8]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 

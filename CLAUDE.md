@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.7** — next must be v5.8
+- Current version: **v5.8** — next must be v5.9
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -220,6 +220,14 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
 - v5.6: REVERTED — triangle position change (bar_index+1 to bar_index) was wrong and
         created visual confusion. The underlying CURRENT SESSION data mismatch bug was
         not addressed. Do not use v5.6.
+- v5.8: Fixed CURRENT SESSION = NEXT SESSION identical-data bug. Root cause: snapping
+        _cs* AT isConfirmedResBar (bar N close) meant that on weekends barstate.islast is
+        still bar N, so _cs* = NEXT SESSION = identical. Fix: two-cycle staging.
+        Cycle 1 (isConfirmedResBar): stage bar N's signal in _pending* vars using main
+        signal values (biasDir, isSignalHigh, etc.). Cycle 2 (isResUpdate, bar N+1 open):
+        promote _pending* → _cs*. During bar N, _cs* holds bar N-1's prediction (what was
+        predicted FOR this session at session start). On weekends _cs* stays at bar N-1's
+        prediction while NEXT SESSION shows bar N's prediction — guaranteed different.
 - v5.7: Fixed CURRENT SESSION data mismatch. Root cause: Section 9D snapshotted
         main-signal (lookahead_off) values at isConfirmedResBar, but NEXT SESSION
         displays LO (lookahead_on) values. The two paths diverge because the transition
