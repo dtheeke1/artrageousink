@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.1", shorttitle="MRB v5.1", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.2", shorttitle="MRB v5.2", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -547,8 +547,10 @@ if i_useEntropy and entropyConfLO > 55.0
     confScoreLO += 1
 
 // Full HIGH gate — same thresholds as main signal; exhaustion/MACD use live chart data
-bool notExhaustedLO = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
-bool isSignalHighLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAligned and notExhaustedLO
+bool notExhaustedLO  = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
+bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAligned and notExhaustedLO
+bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= i_compThreshM
+string sigQualityLO  = isSignalHighLO ? "HIGH" : isSignalMediumLO ? "MEDIUM" : "LOW"
 
 // ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
@@ -675,7 +677,7 @@ string    _lSzV     = i_markerSize == "Tiny" ? size.tiny : i_markerSize == "Smal
 // ATR offset pushes labels clear of candle wicks. exhaustAtr already computed in Sec 8C.
 // yloc.belowbar/abovebar require the target bar's OHLC — they silently fail on bar_index+1
 // when that bar is a future/non-existent bar. yloc.price with explicit offset is reliable.
-float _mrkOffset = not na(exhaustAtr) and exhaustAtr > 0.0 ? exhaustAtr * 0.5 : 0.0
+float _mrkOffset = not na(exhaustAtr) and exhaustAtr > 0.0 ? exhaustAtr * 2.0 : 0.0
 
 if isResUpdate and barstate.isconfirmed and isSignalHigh and biasDir != 0
     label.delete(_prevLbl)
@@ -779,7 +781,7 @@ var table evalDash = table.new(
      i_evalPos == "Top Right"    ? position.top_right    :
      i_evalPos == "Bottom Right" ? position.bottom_right :
      i_evalPos == "Bottom Left"  ? position.bottom_left  : position.top_left,
-     4, 12,
+     4, 16,
      border_width=1, border_color=color.new(color.gray, 70),
      frame_width=2,  frame_color=color.new(color.gray, 50))
 
@@ -1049,7 +1051,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.1]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.2]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1230,7 +1232,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.1]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.2]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1292,14 +1294,52 @@ if barstate.islast
                    bgcolor=_sBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 7, 3, 7)
 
-        // ── Row 8: Date Range header ──────────────────────────────────────────
+        // ── Rows 8-11: Next session forecast (populated only on confirmed close) ──
+        // barstate.isconfirmed = true only when the current bar is closed.
+        // Mid-week on an open bar: show dashes. On Friday close / replay: show LO signal.
+        color _pendBg = color.new(color.gray, 55)
+        if barstate.isconfirmed
+            string _biasLblLO = biasDirLO == 1 ? "▲  BULLISH" : biasDirLO == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+            color  _biasBgLO  = biasDirLO == 1 ? color.new(i_colorBull, 0) : biasDirLO == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
+            color  _sqBgLO    = isSignalHighLO ? color.new(i_colorBull, 0) : isSignalMediumLO ? color.new(color.orange, 0) : color.new(color.gray, 15)
+            color  _compBgLO  = compositeProbLO >= i_compThreshH ? color.new(#005f73, 0) : compositeProbLO >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+            color  _confBgLO  = confScoreLO >= i_confThreshH ? color.new(#005f73, 0) : confScoreLO >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+            table.cell(evalDash, 0, 8,  "Bias",       bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 8,  _biasLblLO,   bgcolor=_biasBgLO, text_color=color.white,                  text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 8, 3, 8)
+            table.cell(evalDash, 0, 9,  "Signal",     bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 9,  sigQualityLO, bgcolor=_sqBgLO,   text_color=color.white,                  text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 9, 3, 9)
+            table.cell(evalDash, 0, 10, "Composite",  bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 10, str.tostring(compositeProbLO, "#.1") + "%", bgcolor=_compBgLO, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 10, 3, 10)
+            table.cell(evalDash, 0, 11, "Confluence", bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 11, str.tostring(confScoreLO) + " / 5", bgcolor=_confBgLO, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 11, 3, 11)
+        else
+            string _dash = "—"
+            color  _dashTxt = color.new(color.white, 50)
+            table.cell(evalDash, 0, 8,  "Bias",       bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 8,  _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 8, 3, 8)
+            table.cell(evalDash, 0, 9,  "Signal",     bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 9,  _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 9, 3, 9)
+            table.cell(evalDash, 0, 10, "Composite",  bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 10, _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 10, 3, 10)
+            table.cell(evalDash, 0, 11, "Confluence", bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+            table.cell(evalDash, 1, 11, _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
+            table.merge_cells(evalDash, 1, 11, 3, 11)
+
+        // ── Row 12: Date Range header (shifted from 8) ────────────────────────
         string _drHdrV = i_statsDateRange ? str.format_time(i_drStart, "MMM yyyy", "UTC") + " – " + str.format_time(i_drEnd, "MMM yyyy", "UTC") : "DATE RANGE  (off)"
         color  _drBgV  = i_statsDateRange ? color.new(#1a3a5c, 5) : _evOffBg
-        table.cell(evalDash, 0, 8, _drHdrV,
+        table.cell(evalDash, 0, 12, _drHdrV,
                    bgcolor=_drBgV, text_color=color.new(color.white, 15), text_size=_sSzV, text_halign=text.align_center)
-        table.merge_cells(evalDash, 0, 8, 3, 8)
+        table.merge_cells(evalDash, 0, 12, 3, 12)
 
-        // ── Rows 9-11: Date Range performance ────────────────────────────────
+        // ── Rows 13-15: Date Range performance (shifted from 9-11) ────────────
         int   evDrTotW = drBullW  + drBearW
         int   evDrTotL = drBullL  + drBearL
         int   evDrTot  = evDrTotW + evDrTotL
@@ -1309,20 +1349,20 @@ if barstate.islast
         color evNetBgV = evDrNet >= 0.0 ? color.new(color.green, 0) : color.new(color.red, 0)
 
         if i_statsDateRange
-            table.cell(evalDash, 0, 9,  "Overall",              bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 1, 9,  f_wl(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 2, 9,  f_wr(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 3, 9,  str.tostring(evDrTot) + " sig", bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 0, 10, "Price Move",           bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 1, 10, f_fmtAmt(evDrWin),     bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 2, 10, f_fmtAmt(evDrLos),     bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 3, 10, f_fmtAmt(evDrNet),     bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 0, 11, "Avg Move",             bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 1, 11, f_fmtAvg(evDrWin, evDrTotW), bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 2, 11, f_fmtAvg(evDrLos, evDrTotL), bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.cell(evalDash, 3, 11, f_fmtAvg(evDrNet, evDrTot),  bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 0, 13, "Overall",              bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 1, 13, f_wl(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 2, 13, f_wr(evDrTotW, evDrTotL), bgcolor=_sBgV,                 text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 3, 13, str.tostring(evDrTot) + " sig", bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 0, 14, "Price Move",           bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 1, 14, f_fmtAmt(evDrWin),     bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 2, 14, f_fmtAmt(evDrLos),     bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 3, 14, f_fmtAmt(evDrNet),     bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 0, 15, "Avg Move",             bgcolor=color.new(color.gray, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 1, 15, f_fmtAvg(evDrWin, evDrTotW), bgcolor=color.new(color.green, 0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 2, 15, f_fmtAvg(evDrLos, evDrTotL), bgcolor=color.new(color.red,   0), text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+            table.cell(evalDash, 3, 15, f_fmtAvg(evDrNet, evDrTot),  bgcolor=evNetBgV,                  text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         else
-            for r = 9 to 11
+            for r = 13 to 15
                 table.cell(evalDash, 0, r, "", bgcolor=_evOffBg, text_color=txtFullV, text_size=_sSzV)
                 table.merge_cells(evalDash, 0, r, 3, r)
 
