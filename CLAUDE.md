@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.10** — next must be v5.11
+- Current version: **v5.11** — next must be v5.12
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -265,3 +265,12 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         duration. This eliminates the CURRENT SESSION = NEXT SESSION identity bug and
         shows the correct prior-session prediction regardless of historical vs replay mode.
         Removed all _pending* and _cs* var variables; removed isConfirmedResBar dependency.
+- v5.11: Fixed ~2% composite probability discrepancy between CURRENT SESSION and NEXT SESSION.
+        Root cause: v5.10 used bar N's transCount/trans2 for CURRENT SESSION recompute, but
+        those arrays contain 2 extra historical transitions not yet present during bar N-1's
+        replay pause: (N-2→N-1 and (N-3,N-2)→N-1) added at bar N-1's historical isResUpdate,
+        and (N-1→N and (N-2,N-1)→N) added at bar N's historical isResUpdate. Replay instead
+        added spurious N-2→N-2 and (N-3,N-2)→N-2 self-transitions (from the unconfirmed
+        bar push). Fix: array.copy transCount and trans2, undo the 2 historical additions,
+        add the spurious replay transition. Layers 1 and 2 now read matrices that exactly
+        match what NEXT SESSION was reading during bar N-1's replay-paused state.

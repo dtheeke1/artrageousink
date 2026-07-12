@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.10", shorttitle="MRB v5.10", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.11", shorttitle="MRB v5.11", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -572,34 +572,59 @@ string sigQualityLO  = isSignalHighLO ? "HIGH" : isSignalMediumLO and isSignalHi
 // replay (the open, unconfirmed state of bar N-1).
 //
 // During replay paused on bar N-1 (unconfirmed):
-//   stateBuffer[-1] = bar N-2 State  (lookahead_off on unconfirmed bar → prior confirmed)
-//   resStateLO      = bar N-1 LO state (lookahead_on sees in-progress bar)
-//   Layer 2 pair    = (N-2 State) × (N-1 LO)
+//   stateBuffer[-1] = N-2 State  (lookahead_off unconfirmed → prior confirmed)
+//   resStateLO      = N-1 LO state
+//   transCount/trans2 = state BEFORE bar N-1's historical transitions were added
 //
-// On bar N (historical):
-//   stateBuffer[-3] = bar N-2 State  ← matches stateBuffer[-1] in replay
-//   resStateLO[1]   = bar N-1 LO state  ← matches resStateLO in replay
+// On bar N (historical), transCount/trans2 have 2 extra transitions:
+//   Added at bar N-1 historical: N-2→N-1 (first-order) and (N-3,N-2)→N-1 (second-order)
+//   Added at bar N historical:   N-1→N   (first-order) and (N-2,N-1)→N   (second-order)
+//   Replay instead added spurious: N-2→N-2 and (N-3,N-2)→N-2
 //
-// Recomputing with these inputs exactly reconstructs the NEXT SESSION values
-// from bar N-1's replay-paused state. All non-Markov layers use [1] values.
+// Fix: copy transCount/trans2, undo the 2 historical additions, add the spurious
+// replay transition. Then Layer 1 and Layer 2 use the exact same matrices that
+// NEXT SESSION was reading during bar N-1's replay-paused state.
 
-int _resStateLO1 = na(resStateLO[1]) ? 2 : resStateLO[1]
+int         _resStateLO1 = na(resStateLO[1]) ? 2 : resStateLO[1]
+int         _bufSzCS     = array.size(stateBuffer)
+float[]     _tcCS        = array.copy(transCount)
+float[]     _t2CS        = array.copy(trans2)
 
-// Layer 1 — first-order probs from prior bar's LO state
-[_p1BullCS, _p1BearCS, _p1SideCS] = f_probRow(_resStateLO1, transCount)
+if _bufSzCS >= 3
+    int _n2St = array.get(stateBuffer, _bufSzCS - 3)  // N-2 State
+    int _n1St = array.get(stateBuffer, _bufSzCS - 2)  // N-1 State
+    int _nSt  = array.get(stateBuffer, _bufSzCS - 1)  // N State
+    // First-order: undo N-2→N-1 and N-1→N; add spurious N-2→N-2
+    int _tc1a = _n2St * 3 + _n1St
+    int _tc1b = _n1St * 3 + _nSt
+    int _tc1c = _n2St * 3 + _n2St
+    array.set(_tcCS, _tc1a, math.max(0.0, array.get(_tcCS, _tc1a) - 1.0))
+    array.set(_tcCS, _tc1b, math.max(0.0, array.get(_tcCS, _tc1b) - 1.0))
+    array.set(_tcCS, _tc1c, array.get(_tcCS, _tc1c) + 1.0)
+    // Second-order: same undo/add pattern (requires N-3 state)
+    if _bufSzCS >= 4
+        int _n3St = array.get(stateBuffer, _bufSzCS - 4)  // N-3 State
+        int _t2a  = (_n3St * 3 + _n2St) * 3 + _n1St
+        int _t2b  = (_n2St * 3 + _n1St) * 3 + _nSt
+        int _t2c  = (_n3St * 3 + _n2St) * 3 + _n2St
+        array.set(_t2CS, _t2a, math.max(0.0, array.get(_t2CS, _t2a) - 1.0))
+        array.set(_t2CS, _t2b, math.max(0.0, array.get(_t2CS, _t2b) - 1.0))
+        array.set(_t2CS, _t2c, array.get(_t2CS, _t2c) + 1.0)
+
+// Layer 1 — first-order probs from prior bar's LO state (adjusted matrix)
+[_p1BullCS, _p1BearCS, _p1SideCS] = f_probRow(_resStateLO1, _tcCS)
 int _biasDirCS = _p1BullCS >= i_biasThresh ? 1 : _p1BearCS >= i_biasThresh ? -1 : 0
 
-// Layer 2 — second-order using (N-2 State) × (N-1 LO state) pair
+// Layer 2 — second-order using (N-2 State) × (N-1 LO state) pair (adjusted matrix)
 float _p2BullCS  = 33.33
 float _p2BearCS  = 33.33
 float _p2SideCS  = 33.33
-int   _bufSzCS   = array.size(stateBuffer)
 if i_useSecondOrder and _bufSzCS >= 3
     int   _prevCS  = array.get(stateBuffer, _bufSzCS - 3)
     int   _pairCS  = _prevCS * 3 + _resStateLO1
-    float _s2BCS   = array.get(trans2, _pairCS * 3 + 0)
-    float _s2BrCS  = array.get(trans2, _pairCS * 3 + 1)
-    float _s2SCS   = array.get(trans2, _pairCS * 3 + 2)
+    float _s2BCS   = array.get(_t2CS, _pairCS * 3 + 0)
+    float _s2BrCS  = array.get(_t2CS, _pairCS * 3 + 1)
+    float _s2SCS   = array.get(_t2CS, _pairCS * 3 + 2)
     float _s2SumCS = _s2BCS + _s2BrCS + _s2SCS
     if _s2SumCS > 0.0
         _p2BullCS := _s2BCS  / _s2SumCS * 100.0
@@ -1153,7 +1178,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.10]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.11]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1334,7 +1359,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.10]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.11]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
