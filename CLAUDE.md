@@ -4,6 +4,13 @@
 After EVERY change to MarkovRegimeBias.pine, display the FULL copyable Pine Script in chat.
 No exceptions — the user pastes the full script into TradingView each time.
 
+## PERMANENT ONE-BLOCK RULE — NEVER SPLIT THE SCRIPT
+ALWAYS output the complete Pine Script in ONE single continuous code block.
+NEVER split into Block 1 / Block 2 or any multiple parts for any reason.
+If the script is too long to fit in one response, that is a token-limit problem — do NOT solve it by splitting.
+Instead: output the full script as one block and accept that it may be truncated; the user will ask for the tail separately if needed.
+Splitting wastes the user's tokens and requires manual concatenation. ONE BLOCK. ALWAYS.
+
 ## PERMANENT VERSION RULE
 Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
