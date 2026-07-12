@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.8** — next must be v5.9
+- Current version: **v5.9** — next must be v5.10
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -220,14 +220,6 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
 - v5.6: REVERTED — triangle position change (bar_index+1 to bar_index) was wrong and
         created visual confusion. The underlying CURRENT SESSION data mismatch bug was
         not addressed. Do not use v5.6.
-- v5.8: Fixed CURRENT SESSION = NEXT SESSION identical-data bug. Root cause: snapping
-        _cs* AT isConfirmedResBar (bar N close) meant that on weekends barstate.islast is
-        still bar N, so _cs* = NEXT SESSION = identical. Fix: two-cycle staging.
-        Cycle 1 (isConfirmedResBar): stage bar N's signal in _pending* vars using main
-        signal values (biasDir, isSignalHigh, etc.). Cycle 2 (isResUpdate, bar N+1 open):
-        promote _pending* → _cs*. During bar N, _cs* holds bar N-1's prediction (what was
-        predicted FOR this session at session start). On weekends _cs* stays at bar N-1's
-        prediction while NEXT SESSION shows bar N's prediction — guaranteed different.
 - v5.7: Fixed CURRENT SESSION data mismatch. Root cause: Section 9D snapshotted
         main-signal (lookahead_off) values at isConfirmedResBar, but NEXT SESSION
         displays LO (lookahead_on) values. The two paths diverge because the transition
@@ -239,3 +231,21 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         exactly the prediction NEXT SESSION displayed during bar N — data transfers
         correctly between sessions in both live and replay mode.
         Also reverted v5.6 triangle position back to x=bar_index+1 (v5.5 behavior).
+- v5.8: Fixed CURRENT SESSION = NEXT SESSION identical-data bug (two-cycle staging).
+        Root cause: snapping _cs* directly at isConfirmedResBar (bar N close) meant that
+        on weekends barstate.islast is still bar N, so _cs* = NEXT SESSION = identical.
+        Fix: two-cycle staging. Cycle 1 (isConfirmedResBar): stage bar N's signal in
+        _pending* vars. Cycle 2 (isResUpdate, bar N+1 open): promote _pending* → _cs*.
+        During bar N, _cs* holds bar N-1's prediction. On weekends _cs* stays at bar N-1's
+        prediction while NEXT SESSION shows bar N's prediction — guaranteed different.
+        BUG IN v5.8: _pending* was staged using MAIN signal values (biasDir, compositeProb,
+        etc.) instead of LO values. At isConfirmedResBar, biasDir ≠ biasDirLO because the
+        second-order Markov pair differs (main: stateBuffer[N-2]/[N-1]; LO: [N-1]/resStateLO).
+        CURRENT SESSION therefore showed wrong values (main signal instead of what NEXT
+        SESSION had been displaying). Fixed in v5.9.
+- v5.9: Two fixes. (1) CURRENT SESSION wrong values: changed Section 9D Cycle 1 to stage
+        LO values (_pendingBiasDir := biasDirLO, etc.) so CURRENT SESSION always shows
+        exactly what NEXT SESSION was showing on the prior bar. (2) Date bug: "Starts"
+        date showed Sunday for holiday-shortened weeks (Thursday close + 3 days = Sunday).
+        Fix: `9 - dayofweek(time_close, "UTC")` computes exact days to next Monday for
+        any close day (Friday dow=6 → 3 days, Thursday dow=5 → 4 days).

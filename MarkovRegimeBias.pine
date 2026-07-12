@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.8", shorttitle="MRB v5.8", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.9", shorttitle="MRB v5.9", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -597,16 +597,16 @@ var bool  _csMacdAligned  = true
 var float _csCompProb     = 50.0
 var int   _csConfScore    = 0
 
-// Cycle 1: at bar N close, stage bar N's signal (= prediction for bar N+1 session)
+// Cycle 1: at bar N close, stage bar N's LO signal (matches what NEXT SESSION was showing)
 if isConfirmedResBar
-    _pendingBiasDir      := biasDir
-    _pendingIsSignalHigh := isSignalHigh
-    _pendingIsSignalMed  := isSignalMedium
-    _pendingIsSignalHiRa := isSignalHighRaw
-    _pendingNotExhausted := notExhausted
-    _pendingMacdAligned  := macdAligned
-    _pendingCompProb     := compositeProb
-    _pendingConfScore    := confScore
+    _pendingBiasDir      := biasDirLO
+    _pendingIsSignalHigh := isSignalHighLO
+    _pendingIsSignalMed  := isSignalMediumLO
+    _pendingIsSignalHiRa := isSignalHighRawLO
+    _pendingNotExhausted := notExhaustedLO
+    _pendingMacdAligned  := macdAlignedLO
+    _pendingCompProb     := compositeProbLO
+    _pendingConfScore    := confScoreLO
 
 // Cycle 2: at bar N+1 open, promote staged values → CURRENT SESSION display
 // isResUpdate and isConfirmedResBar never fire on the same tick, so no ordering conflict.
@@ -1119,7 +1119,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.8]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.9]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1300,7 +1300,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.8]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.9]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1355,10 +1355,11 @@ if barstate.islast
         table.merge_cells(evalDash, 0, 6, 3, 6)
 
         // ── Row 7: Next session start date ────────────────────────────────────
-        // Weekly: Friday close + 3 days = Monday open of next week
+        // Weekly: days-to-Monday = 9 - dayofweek(close) handles any close day (Fri=6 → 3, Thu=5 → 4)
         // Daily/Monthly: close + 1 day (approximate)
-        int _msDay = 86400000
-        int _nextTs = i_resolution == "Weekly" ? time_close + 3 * _msDay : time_close + _msDay
+        int _msDay  = 86400000
+        int _dow    = dayofweek(time_close, "UTC")
+        int _nextTs = i_resolution == "Weekly" ? time_close + (9 - _dow) * _msDay : time_close + _msDay
         string _nextDate = str.format_time(_nextTs, "MMM d, yyyy", "UTC")
         table.cell(evalDash, 0, 7, "Starts",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
