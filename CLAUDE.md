@@ -7,9 +7,16 @@ No exceptions — the user pastes the full script into TradingView each time.
 ## PERMANENT ONE-BLOCK RULE — NEVER SPLIT THE SCRIPT
 ALWAYS output the complete Pine Script in ONE single continuous code block.
 NEVER split into Block 1 / Block 2 or any multiple parts for any reason.
+
+WHY THIS IS CRITICAL — VERSION INTEGRITY:
+Each version (v1.3, v2.0, v5.2, etc.) must exist as a single complete artifact in the conversation
+history. If a version is split across blocks, it does not exist as a coherent whole. Future sessions
+cannot retrieve it intact. Fixes applied to a split version go into the wrong piece. The entire
+version history becomes unreliable and the workflow breaks.
+
 If the script is too long to fit in one response, that is a token-limit problem — do NOT solve it by splitting.
 Instead: output the full script as one block and accept that it may be truncated; the user will ask for the tail separately if needed.
-Splitting wastes the user's tokens and requires manual concatenation. ONE BLOCK. ALWAYS.
+ONE BLOCK. ALWAYS. No exceptions.
 
 ## PERMANENT VERSION RULE
 Update the version number in EVERY new version of the script:
