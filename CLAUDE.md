@@ -18,17 +18,25 @@ If the script is too long to fit in one response, that is a token-limit problem 
 Instead: output the full script as one block and accept that it may be truncated; the user will ask for the tail separately if needed.
 ONE BLOCK. ALWAYS. No exceptions.
 
+## PERMANENT GITHUB URL RULE
+Whenever the script output is truncated (chat cuts off before the end of the script), ALWAYS
+provide this raw GitHub URL so the user can access the complete file:
+https://raw.githubusercontent.com/dtheeke1/artrageousink/claude/markov-regime-pine-script-gq5eu6/MarkovRegimeBias.pine
+
+How to detect truncation: if the last line of the code block is not `// END OF SCRIPT` or the
+closing line of the indicator, the output was truncated — append the URL immediately after the block.
+
 ## PERMANENT VERSION RULE
 Update the version number in EVERY new version of the script:
 - Indicator title string: `"Markov Regime Bias  vX.Y"`
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.4** — next must be v5.5
+- Current version: **v5.6** — next must be v5.7
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
-1. `git add MarkovRegimeBias.pine`
+1. `git add MarkovRegimeBias.pine CLAUDE.md`
 2. `git commit`
 3. `git push -u origin claude/markov-regime-pine-script-gq5eu6`
 4. Display full script in chat
@@ -197,3 +205,24 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         different readings. At Friday's confirmed close they naturally match
         (correct behavior — same just-closed bar). Also fixes Replay display
         without needing any isconfirmed gate.
+- v5.5: Two fixes. (1) Confirmed session triangle not appearing on same-resolution
+        charts (weekly chart + weekly resolution): root cause was `isResUpdate and
+        barstate.isconfirmed` never being simultaneously true — isResUpdate fires
+        at bar OPEN (bar_index changes) while barstate.isconfirmed fires at bar
+        CLOSE. Fix: added `_pendingResBar` flag (set at isResUpdate, cleared at
+        isConfirmedResBar); `isConfirmedResBar = _pendingResBar and
+        barstate.isconfirmed` fires correctly at bar close on all chart resolutions.
+        (2) CURRENT SESSION and NEXT SESSION showing identical data: root cause was
+        evalDash CURRENT SESSION using live signal (same as LO) on same-resolution
+        chart. Fix: introduced `_cs*` snapshot variables (Section 9D) updated only
+        at isConfirmedResBar; evalDash CURRENT SESSION rows 2-5 use `_cs*` (prior
+        confirmed close) while NEXT SESSION uses live LO variables.
+- v5.6: Fixed confirmed session triangle visually indistinguishable from next-session
+        live preview. Root cause: both the confirmed triangle (isConfirmedResBar) and
+        the live preview (_prevLbl) were placed at `bar_index + 1`, making them overlap
+        at the same position — users saw one triangle at "next session" bar and expected
+        a separate triangle ON the current (closed) session bar. Fix: changed confirmed
+        triangle placement from `x=bar_index + 1` to `x=bar_index` (ON the closed bar).
+        Live preview (_prevLbl) stays at `x=bar_index + 1` so both are visually distinct:
+        triangle ON the closed bar = confirmed HIGH signal for that session; triangle at
+        N+1 = live preview of next session's predicted signal.
