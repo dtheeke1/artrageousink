@@ -24,7 +24,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v4.1** — next must be v4.2
+- Current version: **v5.3** — next must be v5.4
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -166,3 +166,14 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         did the next session go the predicted way?" — matching what the markers show.
         Triangle, carrot, and stats now all use the SAME data source (prior bar's
         confirmed signal) and are guaranteed to always agree.
+- v5.3: Fixed NEXT SESSION rows 8-11 in evalDash showing dashes in Replay mode.
+        Root cause: rows 8-11 were gated by `if barstate.isconfirmed` inside the
+        `if barstate.islast` block. In TradingView Replay, the paused bar has
+        barstate.islast=true but barstate.isconfirmed=false — so the populated
+        branch never fired and dashes always showed. On the live chart both flags
+        are true simultaneously (Friday close IS the last bar), so it worked there.
+        Fix: same pattern as v4.0 carrot fix — introduced 6 persistent `var`
+        variables (_savedBiasDirLO, _savedSigQualityLO, _savedCompProbLO,
+        _savedConfScoreLO, _savedIsHighLO, _savedIsMediumLO) in Section 13C.
+        Updated only on barstate.isconfirmed. evalDash rows 8-11 now display
+        the saved values unconditionally, removing the isconfirmed/else branch.

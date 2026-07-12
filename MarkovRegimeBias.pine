@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.2", shorttitle="MRB v5.2", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.3", shorttitle="MRB v5.3", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -785,6 +785,30 @@ var table evalDash = table.new(
      border_width=1, border_color=color.new(color.gray, 70),
      frame_width=2,  frame_color=color.new(color.gray, 50))
 
+// ============================================================================
+// SECTION 13C — NEXT SESSION SNAPSHOT (v5.3 Replay fix)
+// ============================================================================
+// In TradingView Replay, the paused bar has barstate.islast=true but
+// barstate.isconfirmed=false. A bare `if barstate.isconfirmed` inside the
+// `if barstate.islast` block never fires in Replay — rows 8-11 always showed
+// dashes. Fix: snapshot LO values at each real bar close (isconfirmed), then
+// display the saved values unconditionally on barstate.islast. Same pattern
+// used for carrot labels in v4.0.
+var int    _savedBiasDirLO    = 0
+var string _savedSigQualityLO = "LOW"
+var float  _savedCompProbLO   = 0.0
+var int    _savedConfScoreLO  = 0
+var bool   _savedIsHighLO     = false
+var bool   _savedIsMediumLO   = false
+
+if barstate.isconfirmed
+    _savedBiasDirLO    := biasDirLO
+    _savedSigQualityLO := sigQualityLO
+    _savedCompProbLO   := compositeProbLO
+    _savedConfScoreLO  := confScoreLO
+    _savedIsHighLO     := isSignalHighLO
+    _savedIsMediumLO   := isSignalMediumLO
+
 if barstate.islast
 
     // ── SECTION 14: REGIME BIAS DASHBOARD ────────────────────────────────────
@@ -1051,7 +1075,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.2]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.3]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1232,7 +1256,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.2]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.3]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1294,43 +1318,29 @@ if barstate.islast
                    bgcolor=_sBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 7, 3, 7)
 
-        // ── Rows 8-11: Next session forecast (populated only on confirmed close) ──
-        // barstate.isconfirmed = true only when the current bar is closed.
-        // Mid-week on an open bar: show dashes. On Friday close / replay: show LO signal.
-        color _pendBg = color.new(color.gray, 55)
-        if barstate.isconfirmed
-            string _biasLblLO = biasDirLO == 1 ? "▲  BULLISH" : biasDirLO == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
-            color  _biasBgLO  = biasDirLO == 1 ? color.new(i_colorBull, 0) : biasDirLO == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
-            color  _sqBgLO    = isSignalHighLO ? color.new(i_colorBull, 0) : isSignalMediumLO ? color.new(color.orange, 0) : color.new(color.gray, 15)
-            color  _compBgLO  = compositeProbLO >= i_compThreshH ? color.new(#005f73, 0) : compositeProbLO >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
-            color  _confBgLO  = confScoreLO >= i_confThreshH ? color.new(#005f73, 0) : confScoreLO >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
-            table.cell(evalDash, 0, 8,  "Bias",       bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 8,  _biasLblLO,   bgcolor=_biasBgLO, text_color=color.white,                  text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 8, 3, 8)
-            table.cell(evalDash, 0, 9,  "Signal",     bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 9,  sigQualityLO, bgcolor=_sqBgLO,   text_color=color.white,                  text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 9, 3, 9)
-            table.cell(evalDash, 0, 10, "Composite",  bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 10, str.tostring(compositeProbLO, "#.1") + "%", bgcolor=_compBgLO, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 10, 3, 10)
-            table.cell(evalDash, 0, 11, "Confluence", bgcolor=rowBgV,    text_color=lblTxtV,                      text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 11, str.tostring(confScoreLO) + " / 5", bgcolor=_confBgLO, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 11, 3, 11)
-        else
-            string _dash = "—"
-            color  _dashTxt = color.new(color.white, 50)
-            table.cell(evalDash, 0, 8,  "Bias",       bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 8,  _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 8, 3, 8)
-            table.cell(evalDash, 0, 9,  "Signal",     bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 9,  _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 9, 3, 9)
-            table.cell(evalDash, 0, 10, "Composite",  bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 10, _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 10, 3, 10)
-            table.cell(evalDash, 0, 11, "Confluence", bgcolor=rowBgV,  text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
-            table.cell(evalDash, 1, 11, _dash,        bgcolor=_pendBg, text_color=_dashTxt, text_size=_sSzV, text_halign=text.align_center)
-            table.merge_cells(evalDash, 1, 11, 3, 11)
+        // ── Rows 8-11: Next session forecast ──────────────────────────────────
+        // Uses _saved* snapshots captured at each real bar close (barstate.isconfirmed).
+        // In TradingView Replay the paused bar has isconfirmed=false, so reading
+        // live LO variables inside `if barstate.isconfirmed` always gave dashes.
+        // The saved values were captured at the last confirmed close and remain
+        // correct for both live and replay display.
+        string _biasLblS = _savedBiasDirLO == 1 ? "▲  BULLISH" : _savedBiasDirLO == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+        color  _biasBgS  = _savedBiasDirLO == 1 ? color.new(i_colorBull, 0) : _savedBiasDirLO == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
+        color  _sqBgS    = _savedIsHighLO ? color.new(i_colorBull, 0) : _savedIsMediumLO ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _compBgS  = _savedCompProbLO >= i_compThreshH ? color.new(#005f73, 0) : _savedCompProbLO >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _confBgS  = _savedConfScoreLO >= i_confThreshH ? color.new(#005f73, 0) : _savedConfScoreLO >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        table.cell(evalDash, 0, 8,  "Bias",       bgcolor=rowBgV,   text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+        table.cell(evalDash, 1, 8,  _biasLblS,    bgcolor=_biasBgS, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
+        table.merge_cells(evalDash, 1, 8, 3, 8)
+        table.cell(evalDash, 0, 9,  "Signal",     bgcolor=rowBgV,   text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+        table.cell(evalDash, 1, 9,  _savedSigQualityLO, bgcolor=_sqBgS, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
+        table.merge_cells(evalDash, 1, 9, 3, 9)
+        table.cell(evalDash, 0, 10, "Composite",  bgcolor=rowBgV,   text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+        table.cell(evalDash, 1, 10, str.tostring(_savedCompProbLO, "#.1") + "%", bgcolor=_compBgS, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+        table.merge_cells(evalDash, 1, 10, 3, 10)
+        table.cell(evalDash, 0, 11, "Confluence", bgcolor=rowBgV,   text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
+        table.cell(evalDash, 1, 11, str.tostring(_savedConfScoreLO) + " / 5", bgcolor=_confBgS, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
+        table.merge_cells(evalDash, 1, 11, 3, 11)
 
         // ── Row 12: Date Range header (shifted from 8) ────────────────────────
         string _drHdrV = i_statsDateRange ? str.format_time(i_drStart, "MMM yyyy", "UTC") + " – " + str.format_time(i_drEnd, "MMM yyyy", "UTC") : "DATE RANGE  (off)"
