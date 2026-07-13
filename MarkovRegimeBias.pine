@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.17", shorttitle="MRB v5.17", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.18", shorttitle="MRB v5.18", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -157,16 +157,16 @@ i_exhaustEma10   = input.int   (10,   "Reset EMA Period (fast)",               m
 
 var string grpLt = "Long-Term Trend Filter"
 
-i_useLtFilter    = input.bool  (false, "Enable Long-Term Trend Filter",             group=grpLt,
-     tooltip="When ON, HIGH signals only fire when the LT trend condition is met. Mode A (crossover OFF): close must be on the correct side of the LT EMA. Mode B (crossover ON): fast EMA must be above/below slow EMA.")
-i_ltEmaPeriod    = input.int   (40,   "LT EMA Period — price vs EMA mode",          minval=5, maxval=500, group=grpLt,
-     tooltip="Used when EMA Crossover Mode is OFF. Default 40 bars at weekly resolution ≈ 40-week (≈200-day) EMA. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA.")
-i_ltUseCrossover = input.bool  (false, "EMA Crossover Mode (fast > slow)",           group=grpLt,
-     tooltip="When ON, the LT filter checks a fast vs slow EMA crossover instead of price vs single EMA. Bull HIGH requires fast EMA > slow EMA; bear HIGH requires fast EMA < slow EMA.")
+i_useLtFilter    = input.bool  (false, "Enable LT Price Filter (close vs EMA)",      group=grpLt,
+     tooltip="Independent filter. When ON, HIGH signals only fire when the resolution close is on the correct side of the LT EMA. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA. Can be used alone or combined with the crossover filter below.")
+i_ltEmaPeriod    = input.int   (40,   "LT EMA Period (price filter)",                minval=5, maxval=500, group=grpLt,
+     tooltip="EMA period for the price-vs-EMA filter. Default 40 bars at weekly resolution ≈ 40-week (≈200-day) EMA.")
+i_ltUseCrossover = input.bool  (false, "Enable LT Crossover Filter (fast > slow EMA)", group=grpLt,
+     tooltip="Independent filter. When ON, HIGH signals only fire when the fast EMA is on the correct side of the slow EMA. Bull HIGH requires fast EMA > slow EMA; bear HIGH requires fast EMA < slow EMA. Can be used alone or combined with the price filter above.")
 i_ltFastPeriod   = input.int   (10,   "Crossover Fast EMA Period",                   minval=2, maxval=200, group=grpLt,
-     tooltip="Fast EMA period for crossover mode. Default 10 bars at regime resolution (e.g. 10-week EMA).")
+     tooltip="Fast EMA period for the crossover filter. Default 10 bars at regime resolution (e.g. 10-week EMA).")
 i_ltSlowPeriod   = input.int   (20,   "Crossover Slow EMA Period",                   minval=5, maxval=500, group=grpLt,
-     tooltip="Slow EMA period for crossover mode. Default 20 bars at regime resolution (e.g. 20-week EMA).")
+     tooltip="Slow EMA period for the crossover filter. Default 20 bars at regime resolution (e.g. 20-week EMA). Tip: if using both filters together, set LT EMA period ≈ fast crossover EMA period for consistent conditions.")
 
 // ============================================================================
 // SECTION 2 — RESOLUTION DATA (CONFIRMED BARS, NO LOOKAHEAD)
@@ -448,13 +448,15 @@ if i_useExhaustion and barstate.isconfirmed
 // ============================================================================
 // SECTION 8D — LONG-TERM TREND ALIGNMENT FILTER
 // ============================================================================
-// Requires the resolution's close to be on the correct side of the long-term
-// EMA before a HIGH signal fires. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA.
-// When filter is off, ltAligned is always true → no effect on existing logic.
+// Two independent filters — each can be toggled on/off separately.
+// When both are on, BOTH conditions must be met (AND logic).
+// When a filter is off its gate is always true → no effect on existing logic.
 
 bool _ltCrossAligned = (biasDir ==  1 and ltFastEmaRes > ltSlowEmaRes) or (biasDir == -1 and ltFastEmaRes < ltSlowEmaRes)
 bool _ltPriceAligned = (biasDir ==  1 and resCloseLT >= ltEmaRes) or (biasDir == -1 and resCloseLT <= ltEmaRes)
-bool ltAligned       = not i_useLtFilter or (i_ltUseCrossover ? _ltCrossAligned : _ltPriceAligned)
+bool _ltPriceOk      = not i_useLtFilter    or _ltPriceAligned
+bool _ltCrossOk      = not i_ltUseCrossover or _ltCrossAligned
+bool ltAligned       = _ltPriceOk and _ltCrossOk
 
 // ============================================================================
 // SECTION 9 — COMPOSITE PROBABILITY & CONFLUENCE SCORE
@@ -517,7 +519,9 @@ bool isSignalMedium  = biasDir != 0 and not isSignalHigh and confScore >= i_conf
 string sigQuality    = isSignalHigh ? "HIGH" :
      isSignalMedium and isSignalHighRaw and not notExhausted ? "MEDIUM  (ext)" :
      isSignalMedium and isSignalHighRaw and not macdAligned  ? "MEDIUM  (MACD)" :
-     isSignalMedium and isSignalHighRaw and not ltAligned    ? "MEDIUM  (trend)" :
+     isSignalMedium and isSignalHighRaw and not _ltCrossOk and not _ltPriceOk ? "MEDIUM  (LT both)" :
+     isSignalMedium and isSignalHighRaw and not _ltCrossOk   ? "MEDIUM  (crossover)" :
+     isSignalMedium and isSignalHighRaw and not _ltPriceOk   ? "MEDIUM  (price EMA)" :
      isSignalMedium ? "MEDIUM" : "LOW"
 
 // ============================================================================
@@ -598,14 +602,18 @@ bool macdAlignedLO   = not i_useMacdFilter or (biasDirLO ==  1 and macdIsBull) o
 bool notExhaustedLO  = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
 bool _ltCrossAlignedLO = (biasDirLO ==  1 and ltFastEmaResLO > ltSlowEmaResLO) or (biasDirLO == -1 and ltFastEmaResLO < ltSlowEmaResLO)
 bool _ltPriceAlignedLO = (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or (biasDirLO == -1 and resCloseLTLO <= ltEmaResLO)
-bool ltAlignedLO       = not i_useLtFilter or (i_ltUseCrossover ? _ltCrossAlignedLO : _ltPriceAlignedLO)
+bool _ltPriceOkLO      = not i_useLtFilter    or _ltPriceAlignedLO
+bool _ltCrossOkLO      = not i_ltUseCrossover or _ltCrossAlignedLO
+bool ltAlignedLO       = _ltPriceOkLO and _ltCrossOkLO
 bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAlignedLO and notExhaustedLO and ltAlignedLO
 bool isSignalHighRawLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH
 bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= i_compThreshM
 string sigQualityLO  = isSignalHighLO ? "HIGH" :
      isSignalMediumLO and isSignalHighRawLO and not notExhaustedLO ? "MEDIUM  (ext)" :
      isSignalMediumLO and isSignalHighRawLO and not macdAlignedLO  ? "MEDIUM  (MACD)" :
-     isSignalMediumLO and isSignalHighRawLO and not ltAlignedLO    ? "MEDIUM  (trend)" :
+     isSignalMediumLO and isSignalHighRawLO and not _ltCrossOkLO and not _ltPriceOkLO ? "MEDIUM  (LT both)" :
+     isSignalMediumLO and isSignalHighRawLO and not _ltCrossOkLO   ? "MEDIUM  (crossover)" :
+     isSignalMediumLO and isSignalHighRawLO and not _ltPriceOkLO   ? "MEDIUM  (price EMA)" :
      isSignalMediumLO ? "MEDIUM" : "LOW"
 
 // ============================================================================
@@ -1109,7 +1117,7 @@ if barstate.islast
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _ltSuffix         = i_useLtFilter   ? "  [LT filtered]"   : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.17]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.18]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1290,7 +1298,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + (i_useLtFilter ? "  [LT]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.17]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.18]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 

@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.17** — next must be v5.18
+- Current version: **v5.18** — next must be v5.19
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,6 +312,16 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.18: Made LT Price Filter and LT Crossover Filter fully independent toggles (AND logic).
+        Previously both were controlled by a single parent "Enable LT Filter" toggle with a mode
+        selector ternary — enabling crossover mode replaced the price filter instead of adding to
+        it, and disabling the parent made the crossover toggle inert. Fix: removed the ternary;
+        `i_useLtFilter` (price vs EMA) and `i_ltUseCrossover` (fast vs slow EMA) now each gate
+        independently: `ltAligned = (not i_useLtFilter or _ltPriceAligned) and (not i_ltUseCrossover
+        or _ltCrossAligned)`. Either or both can be enabled; when both are on, BOTH conditions must
+        pass. Input labels updated to "Enable LT Price Filter" and "Enable LT Crossover Filter".
+        sigQuality annotations now distinguish which filter is blocking: "MEDIUM  (price EMA)",
+        "MEDIUM  (crossover)", or "MEDIUM  (LT both)" when both are blocking.
 - v5.17: Fixed EMA crossover filter parsing ambiguity. Root cause: `ltAligned` and `ltAlignedLO`
         used `or` operators inside ternary true/false branches in a single multi-line expression.
         Pine Script v6 operator precedence (or > ? :) could parse the branches incorrectly,
