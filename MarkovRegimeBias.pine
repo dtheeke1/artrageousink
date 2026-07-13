@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.14", shorttitle="MRB v5.14", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.15", shorttitle="MRB v5.15", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -155,6 +155,13 @@ i_exhaustAtrMult = input.float (3.0,  "ATR Multiplier (extension threshold)", mi
 i_exhaustEma20   = input.int   (20,   "Extension EMA Period (slow)",           minval=5,   maxval=200,            group=grpExhaust)
 i_exhaustEma10   = input.int   (10,   "Reset EMA Period (fast)",               minval=2,   maxval=100,            group=grpExhaust)
 
+var string grpLt = "Long-Term Trend Filter"
+
+i_useLtFilter  = input.bool  (false, "Enable Long-Term Trend Filter",             group=grpLt,
+     tooltip="When ON, HIGH signals only fire when the resolution's close is on the correct side of the long-term EMA. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA. Filters signals against the secular trend.")
+i_ltEmaPeriod  = input.int   (40,   "LT EMA Period (bars at regime resolution)",  minval=5, maxval=500, group=grpLt,
+     tooltip="Default 40 bars at weekly resolution ≈ 40-week (≈200-day) EMA. A well-established institutional trend reference. Increase for a more forgiving filter; decrease to tighten it.")
+
 // ============================================================================
 // SECTION 2 — RESOLUTION DATA (CONFIRMED BARS, NO LOOKAHEAD)
 // ============================================================================
@@ -182,8 +189,10 @@ int stateW = request.security(syminfo.tickerid, "W", f_stateAtRes(), lookahead=b
 int stateM = request.security(syminfo.tickerid, "M", f_stateAtRes(), lookahead=barmerge.lookahead_off)
 
 // VIX data
-float vixClose = request.security("CBOE:VIX", "D", close,                  lookahead=barmerge.lookahead_off)
-float vixSma   = request.security("CBOE:VIX", "D", ta.sma(close, i_vixLen), lookahead=barmerge.lookahead_off)
+float vixClose   = request.security("CBOE:VIX", "D", close,                   lookahead=barmerge.lookahead_off)
+float vixSma     = request.security("CBOE:VIX", "D", ta.sma(close, i_vixLen), lookahead=barmerge.lookahead_off)
+float ltEmaRes   = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltEmaPeriod), lookahead=barmerge.lookahead_off)
+float resCloseLT = request.security(syminfo.tickerid, _res, close,                         lookahead=barmerge.lookahead_off)
 
 // New confirmed bar detection
 var int lastResBarIdx = na
@@ -211,9 +220,11 @@ if isConfirmedResBar
 // tracking, and all dashboards continue to use the lookahead_off path above.
 int resStateLO  = request.security(syminfo.tickerid, _res, f_stateAtRes(), lookahead=barmerge.lookahead_on)
 int resBarIdxLO = request.security(syminfo.tickerid, _res, bar_index,      lookahead=barmerge.lookahead_on)
-int stateD_LO   = request.security(syminfo.tickerid, "D",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
-int stateW_LO   = request.security(syminfo.tickerid, "W",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
-int stateM_LO   = request.security(syminfo.tickerid, "M",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
+int stateD_LO      = request.security(syminfo.tickerid, "D",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
+int stateW_LO      = request.security(syminfo.tickerid, "W",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
+int stateM_LO      = request.security(syminfo.tickerid, "M",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
+float ltEmaResLO   = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltEmaPeriod), lookahead=barmerge.lookahead_on)
+float resCloseLTLO = request.security(syminfo.tickerid, _res, close,                         lookahead=barmerge.lookahead_on)
 
 // ============================================================================
 // SECTION 3 — FIRST-ORDER TRANSITION MATRIX (9-cell)
@@ -425,6 +436,17 @@ if i_useExhaustion and barstate.isconfirmed
         bearExhausted := false
 
 // ============================================================================
+// SECTION 8D — LONG-TERM TREND ALIGNMENT FILTER
+// ============================================================================
+// Requires the resolution's close to be on the correct side of the long-term
+// EMA before a HIGH signal fires. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA.
+// When filter is off, ltAligned is always true → no effect on existing logic.
+
+bool ltAligned = not i_useLtFilter or
+                 (biasDir ==  1 and resCloseLT >= ltEmaRes) or
+                 (biasDir == -1 and resCloseLT <= ltEmaRes)
+
+// ============================================================================
 // SECTION 9 — COMPOSITE PROBABILITY & CONFLUENCE SCORE
 // ============================================================================
 
@@ -477,12 +499,16 @@ if i_useEntropy and entropyConf > 55.0
 // Signal Quality — the single decision gate
 // Uses AtOpen snapshot so a same-bar EMA10 retest cannot unlock the signal mid-bar
 bool notExhausted    = not i_useExhaustion or (biasDir == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
-bool isSignalHigh    = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH and macdAligned and notExhausted
-// Raw HIGH: meets composite + confluence + bias thresholds but ignores exhaustion/MACD filters.
-// Used by evalDash to explain when a filter is downgrading an otherwise-HIGH signal.
+bool isSignalHigh    = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH and macdAligned and notExhausted and ltAligned
+// Raw HIGH: meets composite + confluence + bias thresholds but ignores filter gates.
+// Used by signal quality annotation to show which filter is blocking HIGH.
 bool isSignalHighRaw = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH
 bool isSignalMedium  = biasDir != 0 and not isSignalHigh and confScore >= i_confThreshM and compositeProb >= i_compThreshM
-string sigQuality    = isSignalHigh ? "HIGH" : isSignalMedium ? "MEDIUM" : "LOW"
+string sigQuality    = isSignalHigh ? "HIGH" :
+     isSignalMedium and isSignalHighRaw and not notExhausted ? "MEDIUM  (ext)" :
+     isSignalMedium and isSignalHighRaw and not macdAligned  ? "MEDIUM  (MACD)" :
+     isSignalMedium and isSignalHighRaw and not ltAligned    ? "MEDIUM  (trend)" :
+     isSignalMedium ? "MEDIUM" : "LOW"
 
 // ============================================================================
 // SECTION 9C — LOOKAHEAD-ON SIGNAL COMPUTATION (Friday-close preview)
@@ -557,127 +583,18 @@ if i_useMtf and mtfScoreLO >= 2
 if i_useEntropy and entropyConfLO > 55.0
     confScoreLO += 1
 
-// Full HIGH gate — MACD and exhaustion checks use biasDirLO (not main biasDir)
+// Full HIGH gate — MACD, exhaustion, and LT filter checks use biasDirLO (not main biasDir)
 bool macdAlignedLO   = not i_useMacdFilter or (biasDirLO ==  1 and macdIsBull) or (biasDirLO == -1 and macdIsBear)
 bool notExhaustedLO  = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
-bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAlignedLO and notExhaustedLO
+bool ltAlignedLO     = not i_useLtFilter   or (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or (biasDirLO == -1 and resCloseLTLO <= ltEmaResLO)
+bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAlignedLO and notExhaustedLO and ltAlignedLO
 bool isSignalHighRawLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH
 bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= i_compThreshM
-string sigQualityLO  = isSignalHighLO ? "HIGH" : isSignalMediumLO and isSignalHighRawLO and not notExhaustedLO ? "MEDIUM  (ext)" : isSignalMediumLO and isSignalHighRawLO and not macdAlignedLO ? "MEDIUM  (MACD)" : isSignalMediumLO ? "MEDIUM" : "LOW"
-
-// ============================================================================
-// SECTION 9D — CURRENT SESSION SIGNAL (prior session LO recompute)
-// ============================================================================
-// On bar N, reconstruct exactly what bar N-1's NEXT SESSION was showing during
-// replay (the open, unconfirmed state of bar N-1).
-//
-// During replay paused on bar N-1 (unconfirmed):
-//   stateBuffer[-1] = N-2 State  (lookahead_off unconfirmed → prior confirmed)
-//   resStateLO      = N-1 LO state
-//   transCount/trans2 = state BEFORE bar N-1's historical transitions were added
-//
-// On bar N (historical), transCount/trans2 have 2 extra transitions:
-//   Added at bar N-1 historical: N-2→N-1 (first-order) and (N-3,N-2)→N-1 (second-order)
-//   Added at bar N historical:   N-1→N   (first-order) and (N-2,N-1)→N   (second-order)
-//   Replay instead added spurious: N-2→N-2 and (N-3,N-2)→N-2
-//
-// Fix: copy transCount/trans2, undo the 2 historical additions, add the spurious
-// replay transition. Then Layer 1 and Layer 2 use the exact same matrices that
-// NEXT SESSION was reading during bar N-1's replay-paused state.
-
-int         _resStateLO1 = na(resStateLO[1]) ? 2 : resStateLO[1]
-int         _bufSzCS     = array.size(stateBuffer)
-float[]     _tcCS        = array.copy(transCount)
-float[]     _t2CS        = array.copy(trans2)
-
-if _bufSzCS >= 3
-    int _n2St = array.get(stateBuffer, _bufSzCS - 3)  // N-2 State
-    int _n1St = array.get(stateBuffer, _bufSzCS - 2)  // N-1 State
-    int _nSt  = array.get(stateBuffer, _bufSzCS - 1)  // N State
-    // First-order: undo N-2→N-1 and N-1→N; add spurious N-2→N-2
-    int _tc1a = _n2St * 3 + _n1St
-    int _tc1b = _n1St * 3 + _nSt
-    int _tc1c = _n2St * 3 + _n2St
-    array.set(_tcCS, _tc1a, math.max(0.0, array.get(_tcCS, _tc1a) - 1.0))
-    array.set(_tcCS, _tc1b, math.max(0.0, array.get(_tcCS, _tc1b) - 1.0))
-    array.set(_tcCS, _tc1c, array.get(_tcCS, _tc1c) + 1.0)
-    // Second-order: same undo/add pattern (requires N-3 state)
-    if _bufSzCS >= 4
-        int _n3St = array.get(stateBuffer, _bufSzCS - 4)  // N-3 State
-        int _t2a  = (_n3St * 3 + _n2St) * 3 + _n1St
-        int _t2b  = (_n2St * 3 + _n1St) * 3 + _nSt
-        int _t2c  = (_n3St * 3 + _n2St) * 3 + _n2St
-        array.set(_t2CS, _t2a, math.max(0.0, array.get(_t2CS, _t2a) - 1.0))
-        array.set(_t2CS, _t2b, math.max(0.0, array.get(_t2CS, _t2b) - 1.0))
-        array.set(_t2CS, _t2c, array.get(_t2CS, _t2c) + 1.0)
-
-// Layer 1 — first-order probs from prior bar's LO state (adjusted matrix)
-[_p1BullCS, _p1BearCS, _p1SideCS] = f_probRow(_resStateLO1, _tcCS)
-int _biasDirCS = _p1BullCS >= i_biasThresh ? 1 : _p1BearCS >= i_biasThresh ? -1 : 0
-
-// Layer 2 — second-order using (N-2 State) × (N-1 LO state) pair (adjusted matrix)
-float _p2BullCS  = 33.33
-float _p2BearCS  = 33.33
-float _p2SideCS  = 33.33
-if i_useSecondOrder and _bufSzCS >= 3
-    int   _prevCS  = array.get(stateBuffer, _bufSzCS - 3)
-    int   _pairCS  = _prevCS * 3 + _resStateLO1
-    float _s2BCS   = array.get(_t2CS, _pairCS * 3 + 0)
-    float _s2BrCS  = array.get(_t2CS, _pairCS * 3 + 1)
-    float _s2SCS   = array.get(_t2CS, _pairCS * 3 + 2)
-    float _s2SumCS = _s2BCS + _s2BrCS + _s2SCS
-    if _s2SumCS > 0.0
-        _p2BullCS := _s2BCS  / _s2SumCS * 100.0
-        _p2BearCS := _s2BrCS / _s2SumCS * 100.0
-        _p2SideCS := _s2SCS  / _s2SumCS * 100.0
-
-// Layer 4 — MTF using prior bar's LO states
-int _bDirD_CS   = stateD_LO[1] == 0 ? 1 : stateD_LO[1] == 1 ? -1 : 0
-int _bDirW_CS   = stateW_LO[1] == 0 ? 1 : stateW_LO[1] == 1 ? -1 : 0
-int _bDirM_CS   = stateM_LO[1] == 0 ? 1 : stateM_LO[1] == 1 ? -1 : 0
-int _mtfScoreCS = 0
-if i_useMtf
-    if _bDirD_CS == _biasDirCS
-        _mtfScoreCS += 1
-    if _bDirW_CS == _biasDirCS
-        _mtfScoreCS += 1
-    if _bDirM_CS == _biasDirCS
-        _mtfScoreCS += 1
-float _mtfProbCS = i_useMtf ? 33.33 + float(_mtfScoreCS) * 11.11 : 50.0
-
-// Layer 5 — entropy from prior bar's LO Layer 1 probs
-float _e1CS = math.max(_p1BullCS / 100.0, 0.0001)
-float _e2CS = math.max(_p1BearCS / 100.0, 0.0001)
-float _e3CS = math.max(_p1SideCS / 100.0, 0.0001)
-float _entropyConfCS = (1.0 - math.min(-(_e1CS * math.log(_e1CS) + _e2CS * math.log(_e2CS) + _e3CS * math.log(_e3CS)) / maxEntropy, 1.0)) * 100.0
-
-// Composite probability
-float _primCS     = _biasDirCS ==  1 ? _p1BullCS : _biasDirCS == -1 ? _p1BearCS : _p1SideCS
-float _secCS      = _biasDirCS ==  1 ? _p2BullCS : _biasDirCS == -1 ? _p2BearCS : _p2SideCS
-float _vixCS      = _biasDirCS ==  1 ? vixBullScore[1] : _biasDirCS == -1 ? vixBearScore[1] : 50.0
-float _durBoostCS = i_useDuration ? math.min(float(_durationLO[1]) * 0.3, 4.0) : 0.0
-float _compositeProbCS = w1n * _primCS + w2n * (i_useSecondOrder ? _secCS : _primCS) + w3n * _vixCS + w4n * _mtfProbCS + w5n * (i_useEntropy ? _entropyConfCS : 50.0) + (_biasDirCS != 0 ? _durBoostCS : 0.0)
-
-// Confluence score
-int _confScoreCS = 0
-if _primCS >= i_biasThresh
-    _confScoreCS += 1
-if i_useSecondOrder and _secCS >= i_biasThresh
-    _confScoreCS += 1
-if i_useVix
-    if (_biasDirCS == 1 and not isHighVol[1]) or (_biasDirCS == -1 and isHighVol[1])
-        _confScoreCS += 1
-if i_useMtf and _mtfScoreCS >= 2
-    _confScoreCS += 1
-if i_useEntropy and _entropyConfCS > 55.0
-    _confScoreCS += 1
-
-// Signal quality
-bool _macdAlignedCS  = not i_useMacdFilter or (_biasDirCS ==  1 and macdIsBull[1]) or (_biasDirCS == -1 and macdIsBear[1])
-bool _notExhaustedCS = not i_useExhaustion or (_biasDirCS == 1 ? not bullExhaustedAtOpen[1] : not bearExhaustedAtOpen[1])
-bool _isSignalHighCS    = _biasDirCS != 0 and _confScoreCS >= i_confThreshH and _compositeProbCS >= i_compThreshH and _macdAlignedCS and _notExhaustedCS
-bool _isSignalHighRawCS = _biasDirCS != 0 and _confScoreCS >= i_confThreshH and _compositeProbCS >= i_compThreshH
-bool _isSignalMediumCS  = _biasDirCS != 0 and not _isSignalHighCS and _confScoreCS >= i_confThreshM and _compositeProbCS >= i_compThreshM
+string sigQualityLO  = isSignalHighLO ? "HIGH" :
+     isSignalMediumLO and isSignalHighRawLO and not notExhaustedLO ? "MEDIUM  (ext)" :
+     isSignalMediumLO and isSignalHighRawLO and not macdAlignedLO  ? "MEDIUM  (MACD)" :
+     isSignalMediumLO and isSignalHighRawLO and not ltAlignedLO    ? "MEDIUM  (trend)" :
+     isSignalMediumLO ? "MEDIUM" : "LOW"
 
 // ============================================================================
 // SECTION 9B — PERFORMANCE TRACKING
@@ -1178,8 +1095,9 @@ if barstate.islast
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
-        string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.14]" + _statsTitleSuffix,
+        string _ltSuffix         = i_useLtFilter   ? "  [LT filtered]"   : ""
+        string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.15]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1359,8 +1277,8 @@ if barstate.islast
         color _evOffBg = color.new(color.gray, 45)
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
-        string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.14]" + _evSfx,
+        string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + (i_useLtFilter ? "  [LT]" : "")
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.15]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1372,15 +1290,13 @@ if barstate.islast
                    bgcolor=hdrBgV, text_color=color.new(color.white, 25), text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 1, 3, 1)
 
-        // ── Rows 2-5: Current session signal — prior-session LO recompute (_*CS vars).
-        // Uses stateBuffer[-3] (N-2 State) × resStateLO[1] (N-1 LO) for Layer 2,
-        // exactly matching the pair NEXT SESSION used during bar N-1's replay-paused state.
-        string _csBiasLblV = _biasDirCS == 1 ? "▲  BULLISH" : _biasDirCS == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
-        color  _csBiasBgV  = _biasDirCS == 1 ? color.new(i_colorBull, 0) : _biasDirCS == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
-        string _csEvalSig  = _isSignalHighCS ? "HIGH" : _isSignalMediumCS and _isSignalHighRawCS and not _notExhaustedCS ? "MEDIUM  (ext)" : _isSignalMediumCS and _isSignalHighRawCS and not _macdAlignedCS ? "MEDIUM  (MACD)" : _isSignalMediumCS ? "MEDIUM" : "LOW"
-        color  _csSqBgV    = _isSignalHighCS ? color.new(i_colorBull, 0) : _isSignalMediumCS ? color.new(color.orange, 0) : color.new(color.gray, 15)
-        color  _csCompBgV  = _compositeProbCS >= i_compThreshH ? color.new(#005f73, 0) : _compositeProbCS >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
-        color  _csConfBgV  = _confScoreCS >= i_confThreshH ? color.new(#005f73, 0) : _confScoreCS >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        // ── Rows 2-5: Current session signal — main confirmed signal (exact, matches chart triangles).
+        string _csBiasLblV = biasDir == 1 ? "▲  BULLISH" : biasDir == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
+        color  _csBiasBgV  = biasDir == 1 ? color.new(i_colorBull, 0) : biasDir == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
+        string _csEvalSig  = sigQuality
+        color  _csSqBgV    = isSignalHigh ? color.new(i_colorBull, 0) : isSignalMedium ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _csCompBgV  = compositeProb >= i_compThreshH ? color.new(#005f73, 0) : compositeProb >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _csConfBgV  = confScore >= i_confThreshH ? color.new(#005f73, 0) : confScore >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
 
         // ── Row 2: Bias Direction ──────────────────────────────────────────────
         table.cell(evalDash, 0, 2, "Bias",
@@ -1399,14 +1315,14 @@ if barstate.islast
         // ── Row 4: Composite Probability ──────────────────────────────────────
         table.cell(evalDash, 0, 4, "Composite",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 4, str.tostring(_compositeProbCS, "#.1") + "%",
+        table.cell(evalDash, 1, 4, str.tostring(compositeProb, "#.1") + "%",
                    bgcolor=_csCompBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 4, 3, 4)
 
         // ── Row 5: Confluence Score ────────────────────────────────────────────
         table.cell(evalDash, 0, 5, "Confluence",
                    bgcolor=rowBgV, text_color=lblTxtV, text_size=_sSzV, text_halign=text.align_left)
-        table.cell(evalDash, 1, 5, str.tostring(_confScoreCS) + " / 5",
+        table.cell(evalDash, 1, 5, str.tostring(confScore) + " / 5",
                    bgcolor=_csConfBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 1, 5, 3, 5)
 

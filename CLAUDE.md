@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.14** — next must be v5.15
+- Current version: **v5.15** — next must be v5.16
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -301,3 +301,14 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         triangle (placed at bar N+1) is inside the range. Fix: reverted date range check
         to `time >= i_drStart` (outcome bar N's timestamp), which aligns with the user's
         visual count of triangles visible in the selected date range.
+- v5.15: Two changes. (1) Eliminated composite probability mismatch: Section 9D (prior-session
+        LO matrix undo/add recompute for CURRENT SESSION in evalDash) was inherently approximate
+        — error varied per bar. Fix: removed Section 9D entirely; evalDash CURRENT SESSION rows
+        2-5 now display the main confirmed signal (biasDir, compositeProb, confScore, sigQuality,
+        isSignalHigh/Medium) — always exact and guaranteed to match chart triangles. (2) Added
+        Long-Term Trend Alignment Filter (new Section 8D, optional toggle i_useLtFilter default
+        OFF, period i_ltEmaPeriod default 40 bars at regime resolution). Bull signal requires
+        resCloseLT >= ltEmaRes; bear signal requires resCloseLT <= ltEmaRes. Gates isSignalHigh
+        and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
+        blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
+        suffix when filter is active.
