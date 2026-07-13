@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.12** — next must be v5.13
+- Current version: **v5.13** — next must be v5.14
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -284,3 +284,14 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         kept the OLD streak count (e.g. 10 bars → boost 3.0) — a ~2.7% discrepancy.
         Fix: changed `_durBoostCS` to use `_durationLO[1]` (bar N-1's NEXT SESSION
         duration value) so CURRENT SESSION exactly reuses what NEXT SESSION computed.
+- v5.13: Fixed circular performance measurement bug (0 losses for bearish signals).
+        Root cause: Section 9B gated on `isSignalHigh and biasDir != 0` (bar N's own
+        signal) and measured bar N's `close vs open`. A BEARISH signal fires because
+        bar N's 5-week return is negative → bar N closed down → trivially counted as
+        a win every time → 0 losses. The chart triangles (v4.1 fix) already display
+        bar N-1's signal on bar N's candle, so stats must match.
+        Fix: changed gate to `isSignalHigh[1] and biasDir[1] != 0` (prior bar's
+        confirmed signal) and all biasDir references inside the block to `biasDir[1]`.
+        Date range check changed from `time` to `time[1]` (signal bar's timestamp).
+        Win/loss now measured as "did bar N close in the direction bar N-1 predicted?"
+        — non-circular. Bear signals on up-weeks will now count as losses.

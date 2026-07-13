@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.12", shorttitle="MRB v5.12", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.13", shorttitle="MRB v5.13", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -715,22 +715,23 @@ var float drBullLAmt = 0.0
 var float drBearWAmt = 0.0
 var float drBearLAmt = 0.0
 
-// Performance tracking: when a resolution bar closes HIGH, did it close in the signal direction?
-// Uses current bar's biasDir/isSignalHigh — same gate as the session label (isResUpdate +
-// barstate.isconfirmed) — so stats and chart markers always agree. No plotshapes used in v4.9.
-if isConfirmedResBar and isSignalHigh and biasDir != 0
-    bool _gapWin     = (biasDir == 1 and open > close[1]) or (biasDir == -1 and open < close[1])
-    bool _sessionWin = (biasDir == 1 and close >= open)   or (biasDir == -1 and close <= open)
+// Performance tracking: measure bar N-1's signal against bar N's outcome.
+// Gate uses isSignalHigh[1]/biasDir[1] — the prior confirmed bar's signal — matching the
+// session triangle which also uses [1] values (v4.1 fix). Win/loss measured on THIS bar's
+// prices so the signal bar and outcome bar are never the same bar (no circular measurement).
+if isConfirmedResBar and isSignalHigh[1] and biasDir[1] != 0
+    bool _gapWin     = (biasDir[1] == 1 and open > close[1]) or (biasDir[1] == -1 and open < close[1])
+    bool _sessionWin = (biasDir[1] == 1 and close >= open)   or (biasDir[1] == -1 and close <= open)
     bool isWin       = i_gapMode ? _gapWin : _sessionWin
     int  thisRes = isWin ? 1 : -1
 
     // Signed price move in signal direction (positive = win, negative = loss)
-    float _sessionMove = biasDir == 1 ? (close - open) : (open - close)
-    float _gapMove     = biasDir == 1 ? (open - close[1]) : (close[1] - open)
+    float _sessionMove = biasDir[1] == 1 ? (close - open) : (open - close)
+    float _gapMove     = biasDir[1] == 1 ? (open - close[1]) : (close[1] - open)
     float priceMove    = i_gapMode ? _gapMove : _sessionMove
 
     // All History
-    if biasDir == 1
+    if biasDir[1] == 1
         ahBullW    += isWin ? 1         : 0
         ahBullL    += isWin ? 0         : 1
         ahBullWAmt += isWin ? priceMove : 0.0
@@ -743,9 +744,9 @@ if isConfirmedResBar and isSignalHigh and biasDir != 0
     ahStreak  := thisRes == ahLastRes ? ahStreak + 1 : 1
     ahLastRes := thisRes
 
-    // Date Range
-    if time >= i_drStart and time <= i_drEnd
-        if biasDir == 1
+    // Date Range: use signal bar's timestamp (time[1]) not the outcome bar's
+    if time[1] >= i_drStart and time[1] <= i_drEnd
+        if biasDir[1] == 1
             drBullW    += isWin ? 1         : 0
             drBullL    += isWin ? 0         : 1
             drBullWAmt += isWin ? priceMove : 0.0
@@ -758,7 +759,7 @@ if isConfirmedResBar and isSignalHigh and biasDir != 0
 
     // Last N (rolling array capped at i_lastNCount)
     // Encoding: 1.0=bull-win  -1.0=bull-loss  2.0=bear-win  -2.0=bear-loss
-    float code = biasDir == 1 ? (isWin ? 1.0 : -1.0) : (isWin ? 2.0 : -2.0)
+    float code = biasDir[1] == 1 ? (isWin ? 1.0 : -1.0) : (isWin ? 2.0 : -2.0)
     array.push(lnArr, code)
     if array.size(lnArr) > i_lastNCount
         array.shift(lnArr)
@@ -1178,7 +1179,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.12]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.13]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1359,7 +1360,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.12]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.13]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
