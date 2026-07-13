@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.20** — next must be v5.21
+- Current version: **v5.21** — next must be v5.22
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,6 +312,11 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.21: Fixed CURRENT SESSION evalDash showing NEUTRAL on open bar. Root cause: rows 2-5 used
+        live `biasDir`/`isSignalHigh`/`compositeProb`/`confScore`/`sigQuality` (current open bar)
+        instead of `[1]` (prior confirmed bar). Chart triangles use `biasDir[1]`/`isSignalHigh[1]`
+        per v4.1 fix — evalDash CURRENT SESSION must use the same source. Fix: added `_csCompThreshH`/
+        `_csCompThreshM` locals keyed on `biasDir[1]`; all 4 value variables now use `[1]` lookback.
 - v5.20: Asymmetric signal thresholds — bull and bear HIGH/MEDIUM signals now use separate
         composite probability thresholds. Replaced 2 symmetric inputs (i_compThreshH,
         i_compThreshM) with 4 direction-specific inputs: i_compThreshH_bull (default 65%),
