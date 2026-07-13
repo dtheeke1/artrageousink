@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.13", shorttitle="MRB v5.13", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.14", shorttitle="MRB v5.14", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -744,8 +744,8 @@ if isConfirmedResBar and isSignalHigh[1] and biasDir[1] != 0
     ahStreak  := thisRes == ahLastRes ? ahStreak + 1 : 1
     ahLastRes := thisRes
 
-    // Date Range: use signal bar's timestamp (time[1]) not the outcome bar's
-    if time[1] >= i_drStart and time[1] <= i_drEnd
+    // Date Range: use outcome bar's timestamp (time) — matches triangle visibility in range
+    if time >= i_drStart and time <= i_drEnd
         if biasDir[1] == 1
             drBullW    += isWin ? 1         : 0
             drBullL    += isWin ? 0         : 1
@@ -1179,7 +1179,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.13]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.14]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1360,7 +1360,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.13]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.14]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 

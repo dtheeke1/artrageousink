@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.13** — next must be v5.14
+- Current version: **v5.14** — next must be v5.15
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -295,3 +295,9 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         Date range check changed from `time` to `time[1]` (signal bar's timestamp).
         Win/loss now measured as "did bar N close in the direction bar N-1 predicted?"
         — non-circular. Bear signals on up-weeks will now count as losses.
+- v5.14: Fixed date-range fencepost (win count off by 1). Root cause: v5.13 changed the
+        date range check from `time` to `time[1]` (signal bar N-1's timestamp). A signal
+        whose N-1 bar falls just before i_drStart was excluded even though its visual
+        triangle (placed at bar N+1) is inside the range. Fix: reverted date range check
+        to `time >= i_drStart` (outcome bar N's timestamp), which aligns with the user's
+        visual count of triangles visible in the selected date range.
