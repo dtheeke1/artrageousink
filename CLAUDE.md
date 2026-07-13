@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.21** — next must be v5.22
+- Current version: **v5.22** — next must be v5.23
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,6 +312,16 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.22: Four changes. (1) Updated 5 threshold defaults: i_biasThresh 55→58%, i_compThreshH_bull
+        65→68%, i_compThreshH_bear 62→65%, i_compThreshM_bull 60→63%, i_compThreshM_bear 58→61%.
+        (2) evalDash size default changed "Small"→"Normal". (3) Added `i_showCombined` toggle
+        (default OFF) in Backtesting group — when ON, Signal Performance dashboard shows
+        combined HIGH+MEDIUM statistics instead of HIGH only. All 3 sections (All History,
+        Last N, Date Range) and the evalDash DR rows respect the toggle. Implemented with parallel
+        MEDIUM-only accumulators (ahBullW_M etc.) + combined rolling arrays (lnArr_C/lnAmtArr_C).
+        Display selectors `_ahBullW` / `_drBullW` / `_lnBullW` etc. declared once at the top of
+        the `if barstate.islast` block; statsDash title appends "[HIGH+MED]" suffix when ON.
+        (4) Added `// END OF SCRIPT` sentinel at end of file.
 - v5.21: Fixed CURRENT SESSION evalDash showing NEUTRAL on open bar. Root cause: rows 2-5 used
         live `biasDir`/`isSignalHigh`/`compositeProb`/`confScore`/`sigQuality` (current open bar)
         instead of `[1]` (prior confirmed bar). Chart triangles use `biasDir[1]`/`isSignalHigh[1]`
