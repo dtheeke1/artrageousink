@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.19** — next must be v5.20
+- Current version: **v5.20** — next must be v5.21
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,6 +312,15 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.20: Asymmetric signal thresholds — bull and bear HIGH/MEDIUM signals now use separate
+        composite probability thresholds. Replaced 2 symmetric inputs (i_compThreshH,
+        i_compThreshM) with 4 direction-specific inputs: i_compThreshH_bull (default 65%),
+        i_compThreshH_bear (default 62%), i_compThreshM_bull (default 60%),
+        i_compThreshM_bear (default 58%). Derived `_compThreshH`/`_compThreshM` (biasDir)
+        and `_compThreshHLO`/`_compThreshMLO` (biasDirLO) used throughout signal gates,
+        isSignalHighRaw, isSignalMedium, and all dashboard color thresholds. Bear signals
+        require lower composite to qualify as HIGH, reflecting their historically higher
+        reliability; bull signals require higher composite, reducing false positives.
 - v5.19: Fixed dashboard suffix strings missing i_ltUseCrossover check. Both `_ltSuffix` in
         statsDash ("  [LT filtered]") and `_evSfx` in evalDash ("  [LT]") checked only
         `i_useLtFilter` — enabling only the crossover filter left both suffixes blank, giving

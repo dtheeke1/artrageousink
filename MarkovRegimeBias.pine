@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.19", shorttitle="MRB v5.19", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.20", shorttitle="MRB v5.20", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -92,8 +92,12 @@ i_w5             = input.float(0.15,  "Weight: Entropy Confidence", minval=0.0, 
 
 i_biasThresh  = input.float(55.0, "1st-Order Bias Confidence Threshold (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias,
      tooltip="P(Bull) or P(Bear) must exceed this to register a directional bias from the first-order matrix.")
-i_compThreshH = input.float(62.0, "HIGH Signal: Min Composite Probability (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias)
-i_compThreshM = input.float(58.0, "MEDIUM Signal: Min Composite Probability (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias)
+i_compThreshH_bull = input.float(65.0, "HIGH Signal — Bull: Min Composite (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias,
+     tooltip="Composite probability required for a HIGH bullish signal. Set higher than the bear threshold to apply asymmetric filtering — bull moves are statistically less decisive than bear moves in most instruments.")
+i_compThreshH_bear = input.float(62.0, "HIGH Signal — Bear: Min Composite (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias,
+     tooltip="Composite probability required for a HIGH bearish signal. Default matches the previous symmetric threshold. Lower than bull to reflect that bear signals tend to be more reliable.")
+i_compThreshM_bull = input.float(60.0, "MEDIUM Signal — Bull: Min Composite (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias)
+i_compThreshM_bear = input.float(58.0, "MEDIUM Signal — Bear: Min Composite (%)", minval=50.0, maxval=99.0, step=0.5, group=grpBias)
 i_confThreshH = input.int  (4,   "HIGH Signal: Min Confluence Score (0-5)", minval=0, maxval=5, group=grpBias)
 i_confThreshM = input.int  (3,   "MEDIUM Signal: Min Confluence Score (0-5)", minval=0, maxval=5, group=grpBias)
 i_minSample   = input.int  (30,  "Min Transitions for Warning", minval=5, maxval=500, group=grpBias)
@@ -458,6 +462,10 @@ bool _ltPriceOk      = not i_useLtFilter    or _ltPriceAligned
 bool _ltCrossOk      = not i_ltUseCrossover or _ltCrossAligned
 bool ltAligned       = _ltPriceOk and _ltCrossOk
 
+// Direction-aware composite thresholds — bull requires higher composite than bear
+float _compThreshH  = biasDir == 1 ? i_compThreshH_bull : i_compThreshH_bear
+float _compThreshM  = biasDir == 1 ? i_compThreshM_bull : i_compThreshM_bear
+
 // ============================================================================
 // SECTION 9 — COMPOSITE PROBABILITY & CONFLUENCE SCORE
 // ============================================================================
@@ -511,11 +519,11 @@ if i_useEntropy and entropyConf > 55.0
 // Signal Quality — the single decision gate
 // Uses AtOpen snapshot so a same-bar EMA10 retest cannot unlock the signal mid-bar
 bool notExhausted    = not i_useExhaustion or (biasDir == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
-bool isSignalHigh    = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH and macdAligned and notExhausted and ltAligned
+bool isSignalHigh    = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= _compThreshH and macdAligned and notExhausted and ltAligned
 // Raw HIGH: meets composite + confluence + bias thresholds but ignores filter gates.
 // Used by signal quality annotation to show which filter is blocking HIGH.
-bool isSignalHighRaw = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= i_compThreshH
-bool isSignalMedium  = biasDir != 0 and not isSignalHigh and confScore >= i_confThreshM and compositeProb >= i_compThreshM
+bool isSignalHighRaw = biasDir != 0 and confScore >= i_confThreshH and compositeProb >= _compThreshH
+bool isSignalMedium  = biasDir != 0 and not isSignalHigh and confScore >= i_confThreshM and compositeProb >= _compThreshM
 string sigQuality    = isSignalHigh ? "HIGH" :
      isSignalMedium and isSignalHighRaw and not notExhausted ? "MEDIUM  (ext)" :
      isSignalMedium and isSignalHighRaw and not macdAligned  ? "MEDIUM  (MACD)" :
@@ -536,6 +544,8 @@ string sigQuality    = isSignalHigh ? "HIGH" :
 // Layer 1 — first-order probs from LO state
 [pBullLO, pBearLO, pSideLO] = f_probRow(resStateLO, transCount)
 int biasDirLO = pBullLO >= i_biasThresh ? 1 : pBearLO >= i_biasThresh ? -1 : 0
+float _compThreshHLO = biasDirLO == 1 ? i_compThreshH_bull : i_compThreshH_bear
+float _compThreshMLO = biasDirLO == 1 ? i_compThreshM_bull : i_compThreshM_bear
 
 // Layer 2 — second-order from (prior confirmed state, LO current state) pair
 float p2BullLO = 33.33
@@ -605,9 +615,9 @@ bool _ltPriceAlignedLO = (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or (bi
 bool _ltPriceOkLO      = not i_useLtFilter    or _ltPriceAlignedLO
 bool _ltCrossOkLO      = not i_ltUseCrossover or _ltCrossAlignedLO
 bool ltAlignedLO       = _ltPriceOkLO and _ltCrossOkLO
-bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAlignedLO and notExhaustedLO and ltAlignedLO
-bool isSignalHighRawLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH
-bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= i_compThreshM
+bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= _compThreshHLO and macdAlignedLO and notExhaustedLO and ltAlignedLO
+bool isSignalHighRawLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= _compThreshHLO
+bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= _compThreshMLO
 string sigQualityLO  = isSignalHighLO ? "HIGH" :
      isSignalMediumLO and isSignalHighRawLO and not notExhaustedLO ? "MEDIUM  (ext)" :
      isSignalMediumLO and isSignalHighRawLO and not macdAlignedLO  ? "MEDIUM  (MACD)" :
@@ -932,8 +942,8 @@ if barstate.islast
         table.cell(dash, 0, 6, "Composite Probability", bgcolor=rowBg, text_color=txtDim,
                    text_size=size.small, text_halign=text.align_left)
         table.merge_cells(dash, 0, 6, 1, 6)
-        color compBg = compositeProb >= i_compThreshH ? color.new(#005f73, 10) :
-                       compositeProb >= i_compThreshM ? color.new(color.orange, 10) : color.new(color.gray, 30)
+        color compBg = compositeProb >= _compThreshH ? color.new(#005f73, 10) :
+                       compositeProb >= _compThreshM ? color.new(color.orange, 10) : color.new(color.gray, 30)
         table.cell(dash, 2, 6, str.tostring(compositeProb, "#.1") + "%",
                    bgcolor=compBg, text_color=txtFull,
                    text_size=size.normal, text_halign=text.align_center)
@@ -1117,7 +1127,7 @@ if barstate.islast
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _ltSuffix         = (i_useLtFilter or i_ltUseCrossover) ? "  [LT filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.19]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.20]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1298,7 +1308,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + ((i_useLtFilter or i_ltUseCrossover) ? "  [LT]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.19]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.20]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
@@ -1315,7 +1325,7 @@ if barstate.islast
         color  _csBiasBgV  = biasDir == 1 ? color.new(i_colorBull, 0) : biasDir == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
         string _csEvalSig  = sigQuality
         color  _csSqBgV    = isSignalHigh ? color.new(i_colorBull, 0) : isSignalMedium ? color.new(color.orange, 0) : color.new(color.gray, 15)
-        color  _csCompBgV  = compositeProb >= i_compThreshH ? color.new(#005f73, 0) : compositeProb >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _csCompBgV  = compositeProb >= _compThreshH ? color.new(#005f73, 0) : compositeProb >= _compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
         color  _csConfBgV  = confScore >= i_confThreshH ? color.new(#005f73, 0) : confScore >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
 
         // ── Row 2: Bias Direction ──────────────────────────────────────────────
@@ -1373,7 +1383,7 @@ if barstate.islast
         string _biasLblS = biasDirLO == 1 ? "▲  BULLISH" : biasDirLO == -1 ? "▼  BEARISH" : "◆  NEUTRAL"
         color  _biasBgS  = biasDirLO == 1 ? color.new(i_colorBull, 0) : biasDirLO == -1 ? color.new(i_colorBear, 0) : color.new(i_colorSide, 10)
         color  _sqBgS    = isSignalHighLO ? color.new(i_colorBull, 0) : isSignalMediumLO ? color.new(color.orange, 0) : color.new(color.gray, 15)
-        color  _compBgS  = compositeProbLO >= i_compThreshH ? color.new(#005f73, 0) : compositeProbLO >= i_compThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
+        color  _compBgS  = compositeProbLO >= _compThreshHLO ? color.new(#005f73, 0) : compositeProbLO >= _compThreshMLO ? color.new(color.orange, 0) : color.new(color.gray, 15)
         color  _confBgS  = confScoreLO >= i_confThreshH ? color.new(#005f73, 0) : confScoreLO >= i_confThreshM ? color.new(color.orange, 0) : color.new(color.gray, 15)
         table.cell(evalDash, 0, 8,  "Bias",       bgcolor=rowBgV,   text_color=lblTxtV,  text_size=_sSzV, text_halign=text.align_left)
         table.cell(evalDash, 1, 8,  _biasLblS,    bgcolor=_biasBgS, text_color=color.white, text_size=_sSzV, text_halign=text.align_center)
