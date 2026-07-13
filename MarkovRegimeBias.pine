@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.18", shorttitle="MRB v5.18", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.19", shorttitle="MRB v5.19", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -1115,9 +1115,9 @@ if barstate.islast
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
-        string _ltSuffix         = i_useLtFilter   ? "  [LT filtered]"   : ""
+        string _ltSuffix         = (i_useLtFilter or i_ltUseCrossover) ? "  [LT filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.18]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.19]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1297,8 +1297,8 @@ if barstate.islast
         color _evOffBg = color.new(color.gray, 45)
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
-        string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + (i_useLtFilter ? "  [LT]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.18]" + _evSfx,
+        string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + ((i_useLtFilter or i_ltUseCrossover) ? "  [LT]" : "")
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.19]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 

@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.18** — next must be v5.19
+- Current version: **v5.19** — next must be v5.20
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,6 +312,11 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.19: Fixed dashboard suffix strings missing i_ltUseCrossover check. Both `_ltSuffix` in
+        statsDash ("  [LT filtered]") and `_evSfx` in evalDash ("  [LT]") checked only
+        `i_useLtFilter` — enabling only the crossover filter left both suffixes blank, giving
+        no visual indication the filter was active. Fix: both strings now check
+        `(i_useLtFilter or i_ltUseCrossover)` so either filter being ON triggers the suffix.
 - v5.18: Made LT Price Filter and LT Crossover Filter fully independent toggles (AND logic).
         Previously both were controlled by a single parent "Enable LT Filter" toggle with a mode
         selector ternary — enabling crossover mode replaced the price filter instead of adding to
