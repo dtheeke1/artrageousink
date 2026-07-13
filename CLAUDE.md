@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.16** — next must be v5.17
+- Current version: **v5.17** — next must be v5.18
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,6 +312,12 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.17: Fixed EMA crossover filter parsing ambiguity. Root cause: `ltAligned` and `ltAlignedLO`
+        used `or` operators inside ternary true/false branches in a single multi-line expression.
+        Pine Script v6 operator precedence (or > ? :) could parse the branches incorrectly,
+        causing the crossover condition to never block signals. Fix: extracted intermediate
+        booleans `_ltCrossAligned` / `_ltPriceAligned` (and LO counterparts) so the ternary
+        selects between two pre-computed booleans — unambiguous and guaranteed correct.
 - v5.16: Added EMA Crossover Mode to Long-Term Trend Filter. New toggle i_ltUseCrossover
         (default OFF) switches the LT filter from "price vs single EMA" to "fast EMA vs slow
         EMA" crossover. New inputs: i_ltFastPeriod (default 10), i_ltSlowPeriod (default 20),

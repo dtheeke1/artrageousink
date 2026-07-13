@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.16", shorttitle="MRB v5.16", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.17", shorttitle="MRB v5.17", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -452,12 +452,9 @@ if i_useExhaustion and barstate.isconfirmed
 // EMA before a HIGH signal fires. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA.
 // When filter is off, ltAligned is always true → no effect on existing logic.
 
-bool ltAligned = not i_useLtFilter or
-                 (i_ltUseCrossover ?
-                      (biasDir ==  1 and ltFastEmaRes > ltSlowEmaRes) or
-                      (biasDir == -1 and ltFastEmaRes < ltSlowEmaRes) :
-                      (biasDir ==  1 and resCloseLT >= ltEmaRes) or
-                      (biasDir == -1 and resCloseLT <= ltEmaRes))
+bool _ltCrossAligned = (biasDir ==  1 and ltFastEmaRes > ltSlowEmaRes) or (biasDir == -1 and ltFastEmaRes < ltSlowEmaRes)
+bool _ltPriceAligned = (biasDir ==  1 and resCloseLT >= ltEmaRes) or (biasDir == -1 and resCloseLT <= ltEmaRes)
+bool ltAligned       = not i_useLtFilter or (i_ltUseCrossover ? _ltCrossAligned : _ltPriceAligned)
 
 // ============================================================================
 // SECTION 9 — COMPOSITE PROBABILITY & CONFLUENCE SCORE
@@ -599,12 +596,9 @@ if i_useEntropy and entropyConfLO > 55.0
 // Full HIGH gate — MACD, exhaustion, and LT filter checks use biasDirLO (not main biasDir)
 bool macdAlignedLO   = not i_useMacdFilter or (biasDirLO ==  1 and macdIsBull) or (biasDirLO == -1 and macdIsBear)
 bool notExhaustedLO  = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
-bool ltAlignedLO     = not i_useLtFilter or
-                       (i_ltUseCrossover ?
-                            (biasDirLO ==  1 and ltFastEmaResLO > ltSlowEmaResLO) or
-                            (biasDirLO == -1 and ltFastEmaResLO < ltSlowEmaResLO) :
-                            (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or
-                            (biasDirLO == -1 and resCloseLTLO <= ltEmaResLO))
+bool _ltCrossAlignedLO = (biasDirLO ==  1 and ltFastEmaResLO > ltSlowEmaResLO) or (biasDirLO == -1 and ltFastEmaResLO < ltSlowEmaResLO)
+bool _ltPriceAlignedLO = (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or (biasDirLO == -1 and resCloseLTLO <= ltEmaResLO)
+bool ltAlignedLO       = not i_useLtFilter or (i_ltUseCrossover ? _ltCrossAlignedLO : _ltPriceAlignedLO)
 bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAlignedLO and notExhaustedLO and ltAlignedLO
 bool isSignalHighRawLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH
 bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= i_compThreshM
@@ -1115,7 +1109,7 @@ if barstate.islast
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _ltSuffix         = i_useLtFilter   ? "  [LT filtered]"   : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.16]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.17]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1296,7 +1290,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + (i_useLtFilter ? "  [LT]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.16]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.17]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
