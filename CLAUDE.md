@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.22** — next must be v5.23
+- Current version: **v5.23** — next must be v5.24
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -322,6 +322,13 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         Display selectors `_ahBullW` / `_drBullW` / `_lnBullW` etc. declared once at the top of
         the `if barstate.islast` block; statsDash title appends "[HIGH+MED]" suffix when ON.
         (4) Added `// END OF SCRIPT` sentinel at end of file.
+- v5.23: Fixed Signal Performance dashboard not showing up. Root cause: `i_statsPos` defaulted to
+        "Bottom Right" — same corner as `i_evalPos` (also "Bottom Right"). TradingView's table
+        frame for evalDash occupies the Bottom Right position even when evalDash is unchecked
+        (no cells rendered), blocking statsDash from appearing. Fix: changed `i_statsPos` default
+        from "Bottom Right" to "Top Left" so statsDash never conflicts with evalDash. Users who
+        previously had a custom position set will not be affected (TradingView remembers their
+        setting); only fresh loads / default resets change.
 - v5.21: Fixed CURRENT SESSION evalDash showing NEUTRAL on open bar. Root cause: rows 2-5 used
         live `biasDir`/`isSignalHigh`/`compositeProb`/`confScore`/`sigQuality` (current open bar)
         instead of `[1]` (prior confirmed bar). Chart triangles use `biasDir[1]`/`isSignalHigh[1]`

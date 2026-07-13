@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.22", shorttitle="MRB v5.22", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.23", shorttitle="MRB v5.23", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -129,7 +129,7 @@ i_drEnd          = input.time  (timestamp("2026-12-31 23:59"), "End Date",      
 i_gapMode        = input.bool  (false,                         "Gap Performance Tracking",       group=grpStats,
      tooltip="When ON, a win is measured as overnight gap in the signal direction (open vs prior close) rather than session direction (open to close). Independent of the Next Session Bias Arrow toggle.")
 i_showStats  = input.bool  (false,         "Show Signal Performance Dashboard",                  group=grpStats)
-i_statsPos   = input.string("Bottom Right","Stats Table Position",
+i_statsPos   = input.string("Top Left","Stats Table Position",
      options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grpStats)
 i_statsTblSize = input.string("Small", "Signal Performance Table Size",
      options=["Tiny","Small","Normal","Large"], group=grpStats,
@@ -1245,7 +1245,7 @@ if barstate.islast
         string _ltSuffix         = (i_useLtFilter or i_ltUseCrossover) ? "  [LT filtered]" : ""
         string _combinedSuffix   = i_showCombined  ? "  [HIGH+MED]"      : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix + _combinedSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.22]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.23]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1426,7 +1426,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + ((i_useLtFilter or i_ltUseCrossover) ? "  [LT]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.22]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.23]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
