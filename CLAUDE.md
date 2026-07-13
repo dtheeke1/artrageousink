@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.11** — next must be v5.12
+- Current version: **v5.12** — next must be v5.13
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -274,3 +274,13 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         bar push). Fix: array.copy transCount and trans2, undo the 2 historical additions,
         add the spurious replay transition. Layers 1 and 2 now read matrices that exactly
         match what NEXT SESSION was reading during bar N-1's replay-paused state.
+- v5.12: Fixed residual composite probability discrepancy from duration boost mismatch.
+        Root cause: Section 9D (CURRENT SESSION) used `regimeDuration[1]` (the raw count
+        at bar N-1) for the duration boost, but NEXT SESSION's `_durationLO` formula is
+        `regimeDuration + 1` when the regime continues (adds the +1 for the LO bar), or
+        resets to `1` on a regime change. Using `regimeDuration[1]` was correct for the
+        streak case (off by only 1 bar, < 0.3%), but catastrophically wrong on regime
+        changes: NEXT SESSION resets to duration=1 (boost ≈ 0.3), while CURRENT SESSION
+        kept the OLD streak count (e.g. 10 bars → boost 3.0) — a ~2.7% discrepancy.
+        Fix: changed `_durBoostCS` to use `_durationLO[1]` (bar N-1's NEXT SESSION
+        duration value) so CURRENT SESSION exactly reuses what NEXT SESSION computed.

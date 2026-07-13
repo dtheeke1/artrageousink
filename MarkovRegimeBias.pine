@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.11", shorttitle="MRB v5.11", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.12", shorttitle="MRB v5.12", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -655,7 +655,7 @@ float _entropyConfCS = (1.0 - math.min(-(_e1CS * math.log(_e1CS) + _e2CS * math.
 float _primCS     = _biasDirCS ==  1 ? _p1BullCS : _biasDirCS == -1 ? _p1BearCS : _p1SideCS
 float _secCS      = _biasDirCS ==  1 ? _p2BullCS : _biasDirCS == -1 ? _p2BearCS : _p2SideCS
 float _vixCS      = _biasDirCS ==  1 ? vixBullScore[1] : _biasDirCS == -1 ? vixBearScore[1] : 50.0
-float _durBoostCS = i_useDuration ? math.min(float(regimeDuration[1]) * 0.3, 4.0) : 0.0
+float _durBoostCS = i_useDuration ? math.min(float(_durationLO[1]) * 0.3, 4.0) : 0.0
 float _compositeProbCS = w1n * _primCS + w2n * (i_useSecondOrder ? _secCS : _primCS) + w3n * _vixCS + w4n * _mtfProbCS + w5n * (i_useEntropy ? _entropyConfCS : 50.0) + (_biasDirCS != 0 ? _durBoostCS : 0.0)
 
 // Confluence score
@@ -1178,7 +1178,7 @@ if barstate.islast
         string _gapSuffix        = i_gapMode       ? "  [gap]"           : ""
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.11]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.12]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1359,7 +1359,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.11]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.12]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
