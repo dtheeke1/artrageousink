@@ -32,7 +32,7 @@ Update the version number in EVERY new version of the script:
 - Indicator shorttitle: `"MRB vX.Y"`
 - The stats dashboard title cell: `"SIGNAL PERFORMANCE  [MRB vX.Y]"`
 - Eval dashboard title cell: `"EVALUATION  [MRB vX.Y]"`
-- Current version: **v5.15** — next must be v5.16
+- Current version: **v5.16** — next must be v5.17
 
 ## COMMIT AND PUSH AFTER EVERY CHANGE
 Branch: `claude/markov-regime-pine-script-gq5eu6`
@@ -312,3 +312,10 @@ Branch: `claude/markov-regime-pine-script-gq5eu6`
         and isSignalHighLO. sigQuality annotates "MEDIUM  (trend)" when trend filter is the
         blocking reason. evalDash title shows "[LT]" suffix; statsDash shows "[LT filtered]"
         suffix when filter is active.
+- v5.16: Added EMA Crossover Mode to Long-Term Trend Filter. New toggle i_ltUseCrossover
+        (default OFF) switches the LT filter from "price vs single EMA" to "fast EMA vs slow
+        EMA" crossover. New inputs: i_ltFastPeriod (default 10), i_ltSlowPeriod (default 20),
+        both at regime resolution. When crossover ON: bull HIGH requires ltFastEmaRes >
+        ltSlowEmaRes; bear HIGH requires ltFastEmaRes < ltSlowEmaRes. LO versions use
+        lookahead_on security calls. Original price-vs-EMA mode (i_ltEmaPeriod=40) unchanged
+        and selected when crossover is OFF.

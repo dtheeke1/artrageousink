@@ -1,5 +1,5 @@
 //@version=6
-indicator("Markov Regime Bias  v5.15", shorttitle="MRB v5.15", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator("Markov Regime Bias  v5.16", shorttitle="MRB v5.16", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 // ============================================================================
 // MARKOV REGIME BIAS — Institutional Stack — Pine Script v6
@@ -157,10 +157,16 @@ i_exhaustEma10   = input.int   (10,   "Reset EMA Period (fast)",               m
 
 var string grpLt = "Long-Term Trend Filter"
 
-i_useLtFilter  = input.bool  (false, "Enable Long-Term Trend Filter",             group=grpLt,
-     tooltip="When ON, HIGH signals only fire when the resolution's close is on the correct side of the long-term EMA. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA. Filters signals against the secular trend.")
-i_ltEmaPeriod  = input.int   (40,   "LT EMA Period (bars at regime resolution)",  minval=5, maxval=500, group=grpLt,
-     tooltip="Default 40 bars at weekly resolution ≈ 40-week (≈200-day) EMA. A well-established institutional trend reference. Increase for a more forgiving filter; decrease to tighten it.")
+i_useLtFilter    = input.bool  (false, "Enable Long-Term Trend Filter",             group=grpLt,
+     tooltip="When ON, HIGH signals only fire when the LT trend condition is met. Mode A (crossover OFF): close must be on the correct side of the LT EMA. Mode B (crossover ON): fast EMA must be above/below slow EMA.")
+i_ltEmaPeriod    = input.int   (40,   "LT EMA Period — price vs EMA mode",          minval=5, maxval=500, group=grpLt,
+     tooltip="Used when EMA Crossover Mode is OFF. Default 40 bars at weekly resolution ≈ 40-week (≈200-day) EMA. Bull: close ≥ LT EMA. Bear: close ≤ LT EMA.")
+i_ltUseCrossover = input.bool  (false, "EMA Crossover Mode (fast > slow)",           group=grpLt,
+     tooltip="When ON, the LT filter checks a fast vs slow EMA crossover instead of price vs single EMA. Bull HIGH requires fast EMA > slow EMA; bear HIGH requires fast EMA < slow EMA.")
+i_ltFastPeriod   = input.int   (10,   "Crossover Fast EMA Period",                   minval=2, maxval=200, group=grpLt,
+     tooltip="Fast EMA period for crossover mode. Default 10 bars at regime resolution (e.g. 10-week EMA).")
+i_ltSlowPeriod   = input.int   (20,   "Crossover Slow EMA Period",                   minval=5, maxval=500, group=grpLt,
+     tooltip="Slow EMA period for crossover mode. Default 20 bars at regime resolution (e.g. 20-week EMA).")
 
 // ============================================================================
 // SECTION 2 — RESOLUTION DATA (CONFIRMED BARS, NO LOOKAHEAD)
@@ -191,8 +197,10 @@ int stateM = request.security(syminfo.tickerid, "M", f_stateAtRes(), lookahead=b
 // VIX data
 float vixClose   = request.security("CBOE:VIX", "D", close,                   lookahead=barmerge.lookahead_off)
 float vixSma     = request.security("CBOE:VIX", "D", ta.sma(close, i_vixLen), lookahead=barmerge.lookahead_off)
-float ltEmaRes   = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltEmaPeriod), lookahead=barmerge.lookahead_off)
-float resCloseLT = request.security(syminfo.tickerid, _res, close,                         lookahead=barmerge.lookahead_off)
+float ltEmaRes      = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltEmaPeriod),  lookahead=barmerge.lookahead_off)
+float resCloseLT    = request.security(syminfo.tickerid, _res, close,                          lookahead=barmerge.lookahead_off)
+float ltFastEmaRes  = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltFastPeriod), lookahead=barmerge.lookahead_off)
+float ltSlowEmaRes  = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltSlowPeriod), lookahead=barmerge.lookahead_off)
 
 // New confirmed bar detection
 var int lastResBarIdx = na
@@ -223,8 +231,10 @@ int resBarIdxLO = request.security(syminfo.tickerid, _res, bar_index,      looka
 int stateD_LO      = request.security(syminfo.tickerid, "D",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
 int stateW_LO      = request.security(syminfo.tickerid, "W",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
 int stateM_LO      = request.security(syminfo.tickerid, "M",  f_stateAtRes(), lookahead=barmerge.lookahead_on)
-float ltEmaResLO   = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltEmaPeriod), lookahead=barmerge.lookahead_on)
-float resCloseLTLO = request.security(syminfo.tickerid, _res, close,                         lookahead=barmerge.lookahead_on)
+float ltEmaResLO      = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltEmaPeriod),  lookahead=barmerge.lookahead_on)
+float resCloseLTLO    = request.security(syminfo.tickerid, _res, close,                          lookahead=barmerge.lookahead_on)
+float ltFastEmaResLO  = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltFastPeriod), lookahead=barmerge.lookahead_on)
+float ltSlowEmaResLO  = request.security(syminfo.tickerid, _res, ta.ema(close, i_ltSlowPeriod), lookahead=barmerge.lookahead_on)
 
 // ============================================================================
 // SECTION 3 — FIRST-ORDER TRANSITION MATRIX (9-cell)
@@ -443,8 +453,11 @@ if i_useExhaustion and barstate.isconfirmed
 // When filter is off, ltAligned is always true → no effect on existing logic.
 
 bool ltAligned = not i_useLtFilter or
-                 (biasDir ==  1 and resCloseLT >= ltEmaRes) or
-                 (biasDir == -1 and resCloseLT <= ltEmaRes)
+                 (i_ltUseCrossover ?
+                      (biasDir ==  1 and ltFastEmaRes > ltSlowEmaRes) or
+                      (biasDir == -1 and ltFastEmaRes < ltSlowEmaRes) :
+                      (biasDir ==  1 and resCloseLT >= ltEmaRes) or
+                      (biasDir == -1 and resCloseLT <= ltEmaRes))
 
 // ============================================================================
 // SECTION 9 — COMPOSITE PROBABILITY & CONFLUENCE SCORE
@@ -586,7 +599,12 @@ if i_useEntropy and entropyConfLO > 55.0
 // Full HIGH gate — MACD, exhaustion, and LT filter checks use biasDirLO (not main biasDir)
 bool macdAlignedLO   = not i_useMacdFilter or (biasDirLO ==  1 and macdIsBull) or (biasDirLO == -1 and macdIsBear)
 bool notExhaustedLO  = not i_useExhaustion or (biasDirLO == 1 ? not bullExhaustedAtOpen : not bearExhaustedAtOpen)
-bool ltAlignedLO     = not i_useLtFilter   or (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or (biasDirLO == -1 and resCloseLTLO <= ltEmaResLO)
+bool ltAlignedLO     = not i_useLtFilter or
+                       (i_ltUseCrossover ?
+                            (biasDirLO ==  1 and ltFastEmaResLO > ltSlowEmaResLO) or
+                            (biasDirLO == -1 and ltFastEmaResLO < ltSlowEmaResLO) :
+                            (biasDirLO ==  1 and resCloseLTLO >= ltEmaResLO) or
+                            (biasDirLO == -1 and resCloseLTLO <= ltEmaResLO))
 bool isSignalHighLO  = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH and macdAlignedLO and notExhaustedLO and ltAlignedLO
 bool isSignalHighRawLO = biasDirLO != 0 and confScoreLO >= i_confThreshH and compositeProbLO >= i_compThreshH
 bool isSignalMediumLO = biasDirLO != 0 and not isSignalHighLO and confScoreLO >= i_confThreshM and compositeProbLO >= i_compThreshM
@@ -1097,7 +1115,7 @@ if barstate.islast
         string _macdSuffix       = i_useMacdFilter ? "  [MACD filtered]" : ""
         string _ltSuffix         = i_useLtFilter   ? "  [LT filtered]"   : ""
         string _statsTitleSuffix = _gapSuffix + _macdSuffix + _ltSuffix
-        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.15]" + _statsTitleSuffix,
+        table.cell(statsDash, 0, 0, "SIGNAL PERFORMANCE  [MRB v5.16]" + _statsTitleSuffix,
                    bgcolor=hdrBg, text_color=txtFull,
                    text_size=_sSz, text_halign=text.align_center)
         table.merge_cells(statsDash, 0, 0, 3, 0)
@@ -1278,7 +1296,7 @@ if barstate.islast
 
         // ── Row 0: Title ──────────────────────────────────────────────────────
         string _evSfx = (i_gapMode ? "  [gap]" : "") + (i_useMacdFilter ? "  [MACD]" : "") + (i_useLtFilter ? "  [LT]" : "")
-        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.15]" + _evSfx,
+        table.cell(evalDash, 0, 0, "EVALUATION  [MRB v5.16]" + _evSfx,
                    bgcolor=hdrBgV, text_color=txtFullV, text_size=_sSzV, text_halign=text.align_center)
         table.merge_cells(evalDash, 0, 0, 3, 0)
 
